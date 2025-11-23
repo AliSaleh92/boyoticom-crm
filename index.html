@@ -25,18 +25,25 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- React & Libraries (UMD - No Import Maps to prevent conflicts) -->
+    <!-- React & Libraries (UMD) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
 
     <style>
       body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; color: #2C3340; }
       .date-en { font-family: sans-serif; direction: ltr; display: inline-block; }
       .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #2C3340; width: 24px; height: 24px; animation: spin 1s linear infinite; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      
+      /* Scrollbar Styling */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: #f1f1f1; }
+      ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #999; }
     </style>
 <script type="importmap">
 {
@@ -54,10 +61,9 @@
 <body>
     <div id="root"></div>
 
-    <!-- Error Handler -->
+    <!-- Global Error Handler -->
     <script>
         window.onerror = function(msg, url, line, col, error) {
-            // Ignore ResizeObserver loop limit exceeded
             if (msg && msg.includes('ResizeObserver')) return false;
             console.error("Global Error:", msg, error);
             return false; 
@@ -87,24 +93,23 @@
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        // --- DATA SANITIZERS (CRITICAL FIX FOR ERROR #130) ---
-        // These functions prevent the app from crashing if DB returns Objects/Nulls instead of Strings/Arrays
+        // --- STRICT DATA SANITIZERS (Fixes Error #130) ---
         const safeStr = (val) => {
             if (val === null || val === undefined) return '';
             if (typeof val === 'string') return val;
             if (typeof val === 'number') return String(val);
-            return ''; // If object/array, return empty string
+            return ''; // Return empty string for objects/arrays/functions
         };
         
         const safeArr = (val) => {
             if (!val) return [];
             if (Array.isArray(val)) return val;
-            if (typeof val === 'object') return Object.values(val); // Handle Firebase object-arrays
+            if (typeof val === 'object') return Object.values(val);
             return [];
         };
 
         // --- REACT COMPONENTS ---
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, Component } = React;
         const Recharts = window.Recharts || {};
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } = Recharts;
 
@@ -112,6 +117,24 @@
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} width={size} height={size} className={className}></i>;
         };
+
+        // --- ERROR BOUNDARY (Prevents White Screen) ---
+        class ErrorBoundary extends Component {
+            constructor(props) { super(props); this.state = { hasError: false }; }
+            static getDerivedStateFromError(error) { return { hasError: true }; }
+            componentDidCatch(error, errorInfo) { console.error("React Error:", error, errorInfo); }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="p-6 text-center bg-red-50 rounded-xl border border-red-100 m-4">
+                            <h3 className="text-red-800 font-bold">حدث خطأ في عرض هذا الجزء</h3>
+                            <button onClick={() => window.location.reload()} className="mt-2 text-sm text-red-600 underline">تحديث الصفحة</button>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
 
         // --- CONSTANTS ---
         const STATUS_LIST = [
@@ -133,7 +156,7 @@
             const [password, setPassword] = useState('');
             const [error, setError] = useState('');
             const [loading, setLoading] = useState(false);
-            const [showConfig, setShowConfig] = useState(false); // Hidden gear for emergencies
+            const [showConfig, setShowConfig] = useState(false);
 
             const handleLogin = async (e) => {
                 e.preventDefault();
@@ -162,6 +185,7 @@
                         <h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم العقارية</h1>
                         <p className="text-gray-500 mb-8">نظام إدارة العملاء الداخلي</p>
                         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">{error}</div>}
+                        
                         <form onSubmit={handleLogin} className="space-y-4">
                             <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="email" required placeholder="البريد الإلكتروني" value={email} onChange={e=>setEmail(e.target.value)} />
                             <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="password" required placeholder="كلمة المرور" value={password} onChange={e=>setPassword(e.target.value)} />
@@ -281,11 +305,14 @@
                 update(ref(db, `users/${u.id}`), { role: newRole });
             };
 
+            // Prevent crashes if users array has malformed data
+            const safeUsers = users.filter(u => u && typeof u === 'object' && u.id);
+
             return (
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold text-brand-900">الموظفين</h2>
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                        {users.map(u => (
+                        {safeUsers.map(u => (
                             <div key={u.id} className="flex justify-between items-center p-4 border-b last:border-0 hover:bg-gray-50">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500">{safeStr(u.name).charAt(0)}</div>
@@ -326,15 +353,22 @@
             useEffect(() => {
                 return onAuthStateChanged(auth, (u) => {
                     if (u) {
-                        // Get User Role
                         onValue(ref(db, `users/${u.uid}`), (s) => {
                             const d = s.val();
                             setUser(d ? { id: u.uid, email: u.email, ...d } : { id: u.uid, email: u.email, name: 'User', role: 'employee' });
                             setLoading(false);
                         });
-                        // Load Data
-                        onValue(ref(db, 'clients'), s => setClients(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})).reverse() : []));
-                        onValue(ref(db, 'users'), s => setUsers(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []));
+                        // Use try-catch inside onValue callback for safety
+                        onValue(ref(db, 'clients'), s => {
+                            try {
+                                setClients(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})).reverse() : [])
+                            } catch(e) { console.error("Data Error", e); setClients([]) }
+                        });
+                        onValue(ref(db, 'users'), s => {
+                            try {
+                                setUsers(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : [])
+                            } catch(e) { console.error("User Data Error", e); setUsers([]) }
+                        });
                     } else {
                         setUser(null);
                         setLoading(false);
@@ -382,9 +416,11 @@
                         </header>
                         <div className="flex-1 overflow-y-auto p-6">
                             <div className="max-w-5xl mx-auto">
-                                {page === 'dashboard' && <Dashboard clients={clients} />}
-                                {page === 'clients' && <ClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} />}
-                                {page === 'users' && <UsersList users={users} currentUser={user} />}
+                                <ErrorBoundary>
+                                    {page === 'dashboard' && <Dashboard clients={clients} />}
+                                    {page === 'clients' && <ClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} />}
+                                    {page === 'users' && <UsersList users={users} currentUser={user} />}
+                                </ErrorBoundary>
                             </div>
                         </div>
                     </main>
@@ -409,8 +445,8 @@
                     <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between mb-4"><h3 className="font-bold text-lg">{client?'تعديل':'إضافة'}</h3><button onClick={onClose}><Icon name="x"/></button></div>
                         <div className="space-y-4">
-                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={d.name} onChange={e=>setD({...d, name:e.target.value})} />
-                            <input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={d.phone} onChange={e=>setD({...d, phone:e.target.value})} />
+                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} />
+                            <input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} />
                             <div>
                                 <label className="text-xs font-bold block mb-2">المشاريع</label>
                                 <div className="grid grid-cols-2 gap-2">
@@ -419,13 +455,13 @@
                                     ))}
                                 </div>
                             </div>
-                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={d.source} onChange={e=>setD({...d, source:e.target.value})}>
+                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>
                                 {CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
                             </select>
                             {client && (
                                 <>
                                     <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} />
-                                    <select className="w-full bg-gray-50 border rounded-lg p-3" value={d.status} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
+                                    <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
                                 </>
                             )}
                             <select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role!=='admin'}>
@@ -444,4 +480,3 @@
     </script>
 </body>
 </html>
-    
