@@ -90,6 +90,7 @@
 
     <script>
         window.onerror = function(msg, url, line, col, error) {
+            if (msg && msg.includes('ResizeObserver')) return;
             document.getElementById('global-error').style.display = 'flex';
             document.getElementById('error-msg').innerText = msg;
             return false;
@@ -113,13 +114,11 @@
           appId: "1:433583401372:web:2d483367ad0e0184a10059"
         };
 
-        // Load saved config from localStorage if available
         let firebaseConfig = defaultConfig;
         try {
             const savedConfig = localStorage.getItem('boyoticom_firebase_config');
             if (savedConfig) {
                 firebaseConfig = JSON.parse(savedConfig);
-                console.log("✅ Using custom Firebase config from storage");
             }
         } catch(e) { console.error("Error loading config", e); }
 
@@ -128,19 +127,17 @@
             const auth = getAuth(app);
             const db = getDatabase(app);
 
-            // Expose to React
             window.CRM_SERVICES = {
                 saveConfig: (configString) => {
                     try {
                         let jsonStr = configString;
                         if (jsonStr.includes('=')) jsonStr = jsonStr.substring(jsonStr.indexOf('=') + 1).trim();
                         if (jsonStr.endsWith(';')) jsonStr = jsonStr.slice(0, -1);
-                        // Validate JSON
                         JSON.parse(jsonStr); 
                         localStorage.setItem('boyoticom_firebase_config', jsonStr);
                         window.location.reload();
                     } catch (e) {
-                        alert("تنسيق الكود غير صحيح. تأكد من نسخ كود JSON كاملاً من Firebase.");
+                        alert("تنسيق الكود غير صحيح.");
                     }
                 },
                 resetConfig: () => {
@@ -149,17 +146,22 @@
                 },
                 auth: {
                     login: async (email, password) => {
-                        const cred = await signInWithEmailAndPassword(auth, email, password);
-                        const userSnap = await get(ref(db, `users/${cred.user.uid}`));
-                        let userData = userSnap.exists() ? userSnap.val() : null;
-                        
-                        // Auto-create Admin profile for first login of main email
-                        if (!userData && email.toLowerCase().includes('asaleh')) {
-                            userData = { name: 'المسؤول الرئيسي', email, role: 'admin' };
-                            await set(ref(db, `users/${cred.user.uid}`), userData);
+                        try {
+                            const cred = await signInWithEmailAndPassword(auth, email, password);
+                            const userSnap = await get(ref(db, `users/${cred.user.uid}`));
+                            let userData = userSnap.exists() ? userSnap.val() : null;
+                            
+                            if (!userData) {
+                                // Auto-create profile if missing
+                                const role = email.toLowerCase().includes('asaleh') ? 'admin' : 'employee';
+                                userData = { name: email.split('@')[0], email, role };
+                                await set(ref(db, `users/${cred.user.uid}`), userData);
+                            }
+                            return { id: cred.user.uid, email: cred.user.email, ...userData };
+                        } catch (error) {
+                            console.error("Login error:", error);
+                            throw error;
                         }
-                        
-                        return { id: cred.user.uid, email: cred.user.email, ...(userData || { name: 'User', role: 'employee' }) };
                     },
                     logout: () => signOut(auth),
                     onStateChange: (cb) => onAuthStateChanged(auth, async (u) => {
@@ -178,14 +180,13 @@
                     addClient: (d) => set(push(ref(db, 'clients')), d),
                     updateClient: (id, d) => update(ref(db, `clients/${id}`), d),
                     deleteClient: (id) => remove(ref(db, `clients/${id}`)),
-                    getUsers: (cb) => onValue(ref(db, 'users'), s => cb(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []))
+                    getUsers: (cb) => onValue(ref(db, 'users'), s => cb(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : [])),
+                    updateUserRole: (id, role) => update(ref(db, `users/${id}`), { role })
                 }
             };
-            // Signal that services are ready
             window.dispatchEvent(new Event('firebase-ready'));
         } catch (e) {
-            console.error("Firebase Init Error:", e);
-            window.FIREBASE_ERROR = e.message;
+            console.error("Init Error", e);
         }
     </script>
 
@@ -194,50 +195,31 @@
         const { useState, useEffect, useRef, useMemo, Component } = React;
         const Recharts = window.Recharts || {};
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } = Recharts;
-        const ChartsAvailable = !!window.Recharts;
-
-        // --- Helpers for Safe Rendering ---
+        
+        // --- Safe Rendering Helpers ---
         const safeStr = (val) => {
             if (val === null || val === undefined) return '';
-            if (typeof val === 'object') return ''; // Prevent rendering objects
-            return String(val);
+            if (typeof val === 'string') return val;
+            if (typeof val === 'number') return String(val);
+            return ''; 
         };
         const safeArr = (val) => {
             if (!val) return [];
             if (Array.isArray(val)) return val;
-            if (typeof val === 'object') return Object.values(val); // Handle Firebase Objects as Arrays
+            if (typeof val === 'object') return Object.values(val);
             return [];
         };
 
-        // --- Error Boundary (The Safety Net) ---
+        // --- Error Boundary ---
         class ErrorBoundary extends Component {
-            constructor(props) {
-                super(props);
-                this.state = { hasError: false, error: null };
-            }
-            static getDerivedStateFromError(error) {
-                return { hasError: true, error };
-            }
-            componentDidCatch(error, errorInfo) {
-                console.error("React Error:", error, errorInfo);
-            }
+            constructor(props) { super(props); this.state = { hasError: false }; }
+            static getDerivedStateFromError(error) { return { hasError: true }; }
             render() {
                 if (this.state.hasError) {
                     return (
-                        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gray-50 text-center dir-rtl">
-                            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border border-red-100">
-                                <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <i data-lucide="alert-triangle" width="32" height="32"></i>
-                                </div>
-                                <h1 className="text-xl font-bold text-brand-900 mb-2">حدث خطأ غير متوقع</h1>
-                                <p className="text-gray-500 mb-6 text-sm">نعتذر عن ذلك. يرجى تحديث الصفحة.</p>
-                                <pre className="text-[10px] bg-gray-100 p-3 rounded text-left dir-ltr overflow-auto mb-4 text-gray-600 border border-gray-200 max-h-32">
-                                    {this.state.error && this.state.error.toString()}
-                                </pre>
-                                <button onClick={() => window.location.reload()} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold hover:bg-brand-800 transition">
-                                    تحديث الصفحة
-                                </button>
-                            </div>
+                        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-center p-4">
+                            <h1 className="text-xl font-bold text-brand-900 mb-2">حدث خطأ بسيط</h1>
+                            <button onClick={() => window.location.reload()} className="bg-brand-900 text-white px-6 py-2 rounded-lg">تحديث الصفحة</button>
                         </div>
                     );
                 }
@@ -245,7 +227,6 @@
             }
         }
 
-        // --- Data Constants ---
         const STATUS_LIST = [
           { key: 'New', label: 'عميل جديد', color: 'bg-blue-50 text-blue-700 border-blue-200' },
           { key: 'Contacted1', label: 'تم التواصل 1', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
@@ -264,375 +245,341 @@
             return <i data-lucide={name} width={size} height={size} className={className}></i>;
         };
 
-        // --- Config Modal ---
         const ConfigModal = ({ onClose }) => {
             const [configStr, setConfigStr] = useState('');
             return (
-                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-fade-in">
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl w-full max-w-lg p-6 text-right">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold text-brand-900">إعدادات الاتصال (Firebase)</h3>
+                            <h3 className="text-xl font-bold">إعدادات الاتصال</h3>
                             <button onClick={onClose}><Icon name="x" /></button>
                         </div>
-                        <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                            استخدم هذا المربع لتحديث مفاتيح الربط يدوياً.
-                        </p>
-                        <textarea 
-                            className="w-full h-48 bg-gray-50 border-2 border-gray-200 focus:border-brand-900 p-3 rounded-lg text-xs font-mono mb-4 text-left dir-ltr outline-none"
-                            placeholder='const firebaseConfig = { ... };'
-                            value={configStr}
-                            onChange={e=>setConfigStr(e.target.value)}
-                        />
+                        <textarea className="w-full h-48 bg-gray-50 border p-3 rounded-lg text-xs font-mono mb-4 text-left dir-ltr" value={configStr} onChange={e=>setConfigStr(e.target.value)} placeholder="Paste firebaseConfig here..." />
                         <div className="flex gap-2">
-                            <button onClick={()=>window.CRM_SERVICES.saveConfig(configStr)} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 transition">حفظ وإعادة التشغيل</button>
-                            <button onClick={()=>window.CRM_SERVICES.resetConfig()} className="px-4 py-3 text-red-500 text-sm hover:bg-red-50 rounded-lg">استعادة</button>
+                            <button onClick={()=>window.CRM_SERVICES.saveConfig(configStr)} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold">حفظ</button>
+                            <button onClick={()=>window.CRM_SERVICES.resetConfig()} className="px-4 text-red-500 text-sm">استعادة</button>
                         </div>
                     </div>
                 </div>
             );
         };
 
-        // --- Dashboard ---
-        const Dashboard = ({ clients }) => {
-            const totalClients = clients.length;
-            const newClients = clients.filter(c => c.status === 'New').length;
-            const closedDeals = clients.filter(c => c.status === 'Sold').length;
-            const activeNegotiations = clients.filter(c => ['Deposit', 'Contacted1', 'Contacted2', 'Contacted3'].includes(c.status)).length;
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [clients, setClients] = useState([]);
+            const [users, setUsers] = useState([]);
+            const [page, setPage] = useState('dashboard');
+            const [loading, setLoading] = useState(true);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [editingClient, setEditingClient] = useState(null);
+            const [showConfig, setShowConfig] = useState(false);
+            const [loginError, setLoginError] = useState('');
+            const [loginLoading, setLoginLoading] = useState(false);
+            const [sidebarOpen, setSidebarOpen] = useState(false);
 
-            const statusData = STATUS_LIST.map(status => ({
-                name: status.label,
-                count: clients.filter(c => c.status === status.key).length
-            })).filter(d => d.count > 0);
+            // State for Login Form
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
 
-            const projectStats = {};
-            clients.forEach(c => {
-                safeArr(c.projects).forEach(p => { 
-                    if (typeof p === 'string') projectStats[p] = (projectStats[p] || 0) + 1; 
-                });
-            });
-            const projectData = Object.entries(projectStats).map(([name, value]) => ({ name, value }));
-            const COLORS = ['#2C3340', '#CE9B52', '#E6BC76', '#94a3b8', '#cbd5e1'];
+            useEffect(() => {
+                const checkFirebase = setInterval(() => {
+                    if (window.CRM_SERVICES) {
+                        clearInterval(checkFirebase);
+                        window.CRM_SERVICES.auth.onStateChange((u) => {
+                            setUser(u);
+                            setLoading(false);
+                        });
+                    }
+                }, 100);
+                return () => clearInterval(checkFirebase);
+            }, []);
 
-            const Card = ({ title, value, icon, colorClass, subText }) => (
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between group hover:shadow-md transition">
-                    <div>
-                        <p className="text-gray-500 text-sm font-medium mb-1">{safeStr(title)}</p>
-                        <h3 className="text-3xl font-black text-brand-900">{value}</h3>
-                        {subText && <p className="text-xs text-gray-400 mt-2">{safeStr(subText)}</p>}
+            useEffect(() => {
+                if (user && window.CRM_SERVICES) {
+                    window.CRM_SERVICES.db.getClients(setClients);
+                    window.CRM_SERVICES.db.getUsers(setUsers);
+                }
+            }, [user]);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setLoginLoading(true);
+                setLoginError('');
+                try {
+                    await window.CRM_SERVICES.auth.login(email, password);
+                } catch (err) {
+                    console.error(err);
+                    let msg = 'خطأ في البريد أو كلمة المرور';
+                    if (err.code === 'auth/user-not-found') msg = 'المستخدم غير موجود';
+                    if (err.code === 'auth/wrong-password') msg = 'كلمة المرور غير صحيحة';
+                    if (err.code === 'auth/too-many-requests') msg = 'محاولات كثيرة، حاول لاحقاً';
+                    setLoginError(msg);
+                    setLoginLoading(false);
+                }
+            };
+
+            const handleSaveClient = async (data) => {
+                try {
+                    if (editingClient) {
+                        await window.CRM_SERVICES.db.updateClient(editingClient.id, data);
+                    } else {
+                        await window.CRM_SERVICES.db.addClient({
+                            ...data,
+                            dateAdded: new Date().toISOString(),
+                            addedBy: user.email,
+                            assignedTo: data.assignedTo || (user.role === 'employee' ? user.name : '')
+                        });
+                    }
+                    setIsModalOpen(false);
+                    setEditingClient(null);
+                } catch(e) { alert('Error saving'); }
+            };
+
+            const toggleUserRole = async (u) => {
+                if (confirm(`هل أنت متأكد من تغيير صلاحية ${u.name}؟`)) {
+                    const newRole = u.role === 'admin' ? 'employee' : 'admin';
+                    await window.CRM_SERVICES.db.updateUserRole(u.id, newRole);
+                }
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50 font-bold text-brand-900">جاري التحميل...</div>;
+
+            if (!user) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4">
+                        {showConfig && <ConfigModal onClose={()=>setShowConfig(false)} />}
+                        <button onClick={()=>setShowConfig(true)} className="absolute top-4 left-4 p-2 text-gray-300 hover:text-brand-900 transition"><Icon name="settings" /></button>
+                        <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md text-center border border-gray-100">
+                            <div className="w-20 h-20 bg-brand-900 rounded-2xl mx-auto flex items-center justify-center text-accent-500 mb-6 shadow-xl">
+                                <Icon name="building-2" size={40} />
+                            </div>
+                            <h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم العقارية</h1>
+                            <p className="text-gray-500 mb-8">نظام إدارة العملاء الداخلي</p>
+                            {loginError && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm font-bold border border-red-100">{loginError}</div>}
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                <input type="email" required placeholder="البريد الإلكتروني" className="w-full p-4 border rounded-xl outline-none focus:border-brand-900 bg-gray-50 focus:bg-white text-right date-en" value={email} onChange={e=>setEmail(e.target.value)} />
+                                <input type="password" required placeholder="كلمة المرور" className="w-full p-4 border rounded-xl outline-none focus:border-brand-900 bg-gray-50 focus:bg-white text-right date-en" value={password} onChange={e=>setPassword(e.target.value)} />
+                                <button disabled={loginLoading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg disabled:opacity-50">{loginLoading ? 'جاري الدخول...' : 'تسجيل الدخول'}</button>
+                            </form>
+                        </div>
                     </div>
-                    <div className={`p-4 rounded-xl ${colorClass} group-hover:scale-110 transition duration-300`}>
-                        <Icon name={icon} size={24} />
-                    </div>
-                </div>
-            );
+                );
+            }
 
+            // --- Main Layout ---
             return (
-                <div className="space-y-8 animate-fade-in">
-                    <div><h2 className="text-2xl font-bold text-brand-900">لوحة التحكم</h2><p className="text-gray-500 mt-1">ملخص الأداء</p></div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <Card title="إجمالي العملاء" value={totalClients} icon="users" colorClass="bg-brand-50 text-brand-900" />
-                        <Card title="صفقات ناجحة" value={closedDeals} icon="check-circle-2" colorClass="bg-accent-100 text-accent-600" subText="تم البيع" />
-                        <Card title="عملاء جدد" value={newClients} icon="trending-up" colorClass="bg-blue-50 text-blue-600" subText="بانتظار التواصل" />
-                        <Card title="متابعات جارية" value={activeNegotiations} icon="briefcase" colorClass="bg-gray-100 text-gray-600" />
-                    </div>
-                    {ChartsAvailable && statusData.length > 0 && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2">
-                            <h3 className="font-bold text-lg mb-6 text-brand-900 border-b border-gray-100 pb-4">حالات العملاء</h3>
-                            <div className="h-80 w-full" dir="ltr"><ResponsiveContainer width="100%" height="100%"><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="name" stroke="#94a3b8" fontSize={12} /><YAxis stroke="#94a3b8" fontSize={12} /><RechartsTooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} /><Bar dataKey="count" fill="#2C3340" radius={[4, 4, 0, 0]} barSize={40} /></BarChart></ResponsiveContainer></div>
+                <div className="min-h-screen bg-[#f8fafc] flex">
+                    {sidebarOpen && <div className="fixed inset-0 bg-black/30 z-40 md:hidden" onClick={()=>setSidebarOpen(false)} />}
+                    <aside className={`fixed md:sticky top-0 h-screen w-72 bg-white border-l z-50 transition-transform ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+                        <div className="p-8 flex flex-col h-full">
+                            <div className="flex flex-col items-center mb-10">
+                                <div className="w-12 h-12 bg-brand-900 rounded-xl flex items-center justify-center text-accent-500 mb-3 shadow-lg"><Icon name="building-2" size={24} /></div>
+                                <h1 className="text-xl font-black text-brand-900">بيوتكم</h1>
+                                <span className="text-[10px] text-accent-600 font-bold tracking-widest uppercase">BOYOTICOM</span>
+                            </div>
+                            <nav className="flex-1 space-y-2">
+                                {[
+                                    {id: 'dashboard', icon: 'layout-dashboard', label: 'لوحة التحكم'},
+                                    {id: 'clients', icon: 'users', label: 'العملاء والطلبات'},
+                                    ...(user.role === 'admin' ? [{id: 'users', icon: 'shield', label: 'الموظفين'}] : [])
+                                ].map(item => (
+                                    <button key={item.id} onClick={()=>{setPage(item.id);setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition ${page===item.id ? 'bg-brand-900 text-white shadow-lg shadow-brand-900/20' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                        <Icon name={item.icon} size={20} className={page===item.id ? "text-accent-400" : ""} /> {item.label}
+                                    </button>
+                                ))}
+                            </nav>
+                            <div className="pt-6 border-t mt-auto">
+                                <div className="flex items-center gap-3 mb-4 bg-gray-50 p-3 rounded-xl border">
+                                    <div className="w-10 h-10 rounded-full bg-brand-900 text-white flex items-center justify-center font-bold">{safeStr(user.name).charAt(0)}</div>
+                                    <div className="flex-1 min-w-0 text-right">
+                                        <p className="text-sm font-bold text-brand-900 truncate">{safeStr(user.name)}</p>
+                                        <p className="text-xs text-gray-500 truncate">{user.role === 'admin' ? 'مسؤول' : 'موظف مبيعات'}</p>
+                                    </div>
+                                </div>
+                                <button onClick={()=>window.CRM_SERVICES.auth.logout()} className="w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 py-2 rounded-lg text-sm font-bold"><Icon name="log-out" size={16} /> خروج</button>
+                            </div>
                         </div>
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                            <h3 className="font-bold text-lg mb-6 text-brand-900 border-b border-gray-100 pb-4">المشاريع</h3>
-                            <div className="h-64 w-full relative" dir="ltr"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={projectData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{projectData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><RechartsTooltip /></PieChart></ResponsiveContainer><div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="text-center"><span className="text-gray-400 text-xs block">تفاعل</span><span className="text-3xl font-black text-brand-900">{projectData.reduce((a,b)=>a+b.value,0)}</span></div></div></div>
+                    </aside>
+
+                    <main className="flex-1 flex flex-col h-screen overflow-hidden">
+                        <header className="md:hidden bg-white border-b p-4 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-2 font-bold text-brand-900"><Icon name="building-2" className="text-brand-900" /> بيوتكم</div>
+                            <button onClick={()=>setSidebarOpen(true)}><Icon name="menu" /></button>
+                        </header>
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+                            <div className="max-w-7xl mx-auto">
+                                {page === 'dashboard' && <Dashboard clients={clients} />}
+                                {page === 'clients' && <ClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditingClient(null);setIsModalOpen(true)}} onEdit={(c)=>{setEditingClient(c);setIsModalOpen(true)}} />}
+                                {page === 'users' && (
+                                    <div className="space-y-6">
+                                        <h2 className="text-2xl font-bold text-brand-900">الموظفين</h2>
+                                        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                                            {users.map(u => (
+                                                <div key={u.id} className="flex justify-between items-center p-4 border-b last:border-0 hover:bg-gray-50 transition">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600">{safeStr(u.name).charAt(0)}</div>
+                                                        <div>
+                                                            <div className="font-bold text-brand-900">{safeStr(u.name)}</div>
+                                                            <div className="text-xs text-gray-500 date-en">{safeStr(u.email)}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <span className={`px-3 py-1 rounded-lg text-xs font-bold ${u.role === 'admin' ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                                            {u.role === 'admin' ? 'مسؤول' : 'موظف مبيعات'}
+                                                        </span>
+                                                        {user.role === 'admin' && user.id !== u.id && (
+                                                            <button onClick={() => toggleUserRole(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded-lg transition" title={u.role === 'admin' ? "تنزيل إلى موظف" : "ترقية إلى مسؤول"}>
+                                                                <Icon name={u.role === 'admin' ? "arrow-down" : "arrow-up"} size={18} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-center text-sm text-gray-400 mt-4">لإضافة موظف جديد، قم بإنشاء حساب له في Firebase Authentication، وسيظهر هنا تلقائياً عند تسجيل دخوله.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    </main>
+
+                    {isModalOpen && (
+                        <ClientModal 
+                            client={editingClient} 
+                            isOpen={isModalOpen} 
+                            onClose={()=>setIsModalOpen(false)} 
+                            onSave={handleSaveClient} 
+                            users={users} 
+                            currentUser={user} 
+                        />
                     )}
                 </div>
             );
         };
 
-        // --- Client List ---
-        const ClientList = ({ clients, users, currentUser, onAdd, onEdit, onDelete }) => {
-            const [search, setSearch] = useState('');
-            const [filterStatus, setFilterStatus] = useState('');
-            const [filterUser, setFilterUser] = useState('');
-
-            const filteredClients = useMemo(() => {
-                let accessible = clients;
-                if (currentUser.role === 'employee') {
-                    accessible = clients.filter(c => c.addedBy === currentUser.email || c.assignedTo === currentUser.name);
-                }
-                return accessible.filter(c => {
-                    const nameMatch = safeStr(c.name).toLowerCase().includes(search.toLowerCase());
-                    const phoneMatch = safeStr(c.phone).includes(search);
-                    const matchStatus = filterStatus ? c.status === filterStatus : true;
-                    const matchUser = filterUser ? c.assignedTo === filterUser : true;
-                    return (nameMatch || phoneMatch) && matchStatus && matchUser;
-                });
-            }, [clients, search, filterStatus, filterUser, currentUser]);
-
-            const openWhatsApp = (phone) => {
-                let clean = safeStr(phone).replace(/\D/g, '');
-                if (clean.startsWith('0')) clean = '966' + clean.substring(1);
-                window.open(`https://wa.me/${clean}`, '_blank');
-            };
-
-            const StatusBadge = ({ statusKey }) => {
-                const s = STATUS_LIST.find(x => x.key === statusKey) || STATUS_LIST[0];
-                return <span className={`px-3 py-1 rounded-full text-xs font-bold border ${s.color}`}>{safeStr(s.label)}</span>;
-            };
-
+        // --- Sub Components (Dashboard & List) ---
+        // Re-implemented briefly for single-file context
+        const Dashboard = ({ clients }) => {
+            const statusData = STATUS_LIST.map(s => ({name: s.label, count: clients.filter(c => c.status === s.key).length})).filter(d=>d.count>0);
+            const COLORS = ['#2C3340', '#CE9B52', '#E6BC76', '#94a3b8'];
             return (
                 <div className="space-y-6">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div><h2 className="text-2xl font-bold text-brand-900">إدارة العملاء</h2><p className="text-gray-500 text-sm mt-1">{currentUser.role === 'admin' ? 'الكل' : 'عملائي'}</p></div>
-                        <button onClick={onAdd} className="bg-brand-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-brand-800 transition shadow-lg shadow-brand-900/20"><Icon name="plus" size={20} className="text-accent-400" /> <span>إضافة عميل</span></button>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-gray-500 text-sm mb-1">العملاء</div><div className="text-3xl font-black text-brand-900">{clients.length}</div></div>
+                        <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-gray-500 text-sm mb-1">جديد</div><div className="text-3xl font-black text-blue-600">{clients.filter(c=>c.status==='New').length}</div></div>
+                        <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-gray-500 text-sm mb-1">صفقات</div><div className="text-3xl font-black text-emerald-600">{clients.filter(c=>c.status==='Sold').length}</div></div>
                     </div>
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 relative"><Icon name="search" className="absolute top-3.5 right-4 text-gray-400" size={18} /><input className="w-full pr-12 pl-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-brand-900 bg-gray-50 focus:bg-white transition" placeholder="بحث..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-                        <select className="px-4 py-3 border border-gray-200 rounded-xl outline-none bg-gray-50 focus:bg-white focus:border-brand-900" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="">كل الحالات</option>{STATUS_LIST.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
-                        {currentUser.role === 'admin' && <select className="px-4 py-3 border border-gray-200 rounded-xl outline-none bg-gray-50 focus:bg-white focus:border-brand-900" value={filterUser} onChange={e => setFilterUser(e.target.value)}><option value="">كل الموظفين</option>{users.map(u => <option key={u.id} value={u.name}>{safeStr(u.name)}</option>)}</select>}
-                    </div>
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-right">
-                                <thead className="bg-gray-50 text-brand-900 font-bold text-sm border-b border-gray-100"><tr><th className="p-5">العميل</th><th className="p-5">المشاريع</th><th className="p-5">الحالة</th><th className="p-5">المسؤول</th><th className="p-5">التاريخ</th><th className="p-5 text-center">...</th></tr></thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {filteredClients.map(client => (
-                                        <tr key={client.id} className="hover:bg-gray-50 transition-colors group">
-                                            <td className="p-5"><div className="font-bold text-brand-900">{safeStr(client.name)}</div><div className="flex items-center gap-2 mt-1"><span className="text-gray-500 text-xs date-en bg-gray-100 px-2 py-0.5 rounded">{safeStr(client.phone)}</span><button onClick={() => openWhatsApp(client.phone)} className="text-green-600"><Icon name="message-circle" size={16} /></button></div></td>
-                                            <td className="p-5"><div className="flex flex-col gap-1">{safeArr(client.projects).map((p, i) => <div key={i} className="text-sm text-gray-700 flex items-center gap-1"><Icon name="layers" size={12} className="text-accent-500"/> {safeStr(p)}</div>)}</div></td>
-                                            <td className="p-5"><StatusBadge statusKey={client.status} /></td>
-                                            <td className="p-5">{client.assignedTo ? <div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-brand-50 flex items-center justify-center text-[10px] font-bold text-brand-900">{safeStr(client.assignedTo).charAt(0)}</div><span className="text-sm">{safeStr(client.assignedTo)}</span></div> : <span className="text-gray-300">-</span>}</td>
-                                            <td className="p-5 text-sm text-gray-500 date-en">{new Date(client.dateAdded).toLocaleDateString('en-GB')}</td>
-                                            <td className="p-5 text-center"><div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => onEdit(client)} className="p-2 text-brand-600 hover:bg-brand-50 rounded-lg"><Icon name="edit" size={18} /></button>{currentUser.role === 'admin' && <button onClick={() => onDelete(client.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Icon name="trash-2" size={18} /></button>}</div></td>
-                                        </tr>
-                                    ))}
-                                    {filteredClients.length === 0 && <tr><td colSpan={6} className="p-12 text-center text-gray-400">لا توجد بيانات</td></tr>}
-                                </tbody>
-                            </table>
+                    {window.Recharts && (
+                        <div className="h-80 bg-white p-4 rounded-2xl border shadow-sm" dir="ltr">
+                            <ResponsiveContainer><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><RechartsTooltip /><Bar dataKey="count" fill="#2C3340" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer>
                         </div>
+                    )}
+                </div>
+            );
+        };
+
+        const ClientList = ({ clients, users, currentUser, onAdd, onEdit }) => {
+            const [search, setSearch] = useState('');
+            const filtered = clients.filter(c => {
+                if(currentUser.role === 'employee' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false;
+                return safeStr(c.name).includes(search) || safeStr(c.phone).includes(search);
+            });
+            return (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-brand-900">العملاء</h2>
+                        <button onClick={onAdd} className="bg-brand-900 text-white px-4 py-2 rounded-xl flex items-center gap-2"><Icon name="plus" size={18}/> إضافة</button>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex gap-2">
+                        <Icon name="search" className="text-gray-400" />
+                        <input className="flex-1 outline-none" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} />
+                    </div>
+                    <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                        <table className="w-full text-right">
+                            <thead className="bg-gray-50 text-brand-900 font-bold text-sm"><tr><th className="p-4">الاسم</th><th className="p-4">الحالة</th><th className="p-4">المسؤول</th><th className="p-4"></th></tr></thead>
+                            <tbody className="divide-y">
+                                {filtered.map(c => (
+                                    <tr key={c.id} className="hover:bg-gray-50">
+                                        <td className="p-4">
+                                            <div className="font-bold text-brand-900">{safeStr(c.name)}</div>
+                                            <div className="text-xs text-gray-500 date-en">{safeStr(c.phone)}</div>
+                                        </td>
+                                        <td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td>
+                                        <td className="p-4 text-sm">{safeStr(c.assignedTo) || '-'}</td>
+                                        <td className="p-4"><button onClick={()=>onEdit(c)} className="text-brand-600"><Icon name="edit" size={18} /></button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             );
         };
 
-        // --- Client Modal ---
-        const ClientModal = ({ client, isOpen, onClose, onSave, users, currentUser, onAddNote, onAddTask, onToggleTask, onDeleteTask }) => {
-            const [formData, setFormData] = useState({ name: '', phone: '', status: 'New', projects: [], source: 'مباشر', assignedTo: '' });
-            const [activeTab, setActiveTab] = useState('details');
-            const [noteText, setNoteText] = useState('');
-            const [taskText, setTaskText] = useState('');
-            const notesEndRef = useRef(null);
-
-            useEffect(() => {
-                if (isOpen) {
-                    if (client) setFormData(client);
-                    else setFormData({ name: '', phone: '', status: 'New', projects: [], source: 'مباشر', assignedTo: currentUser.role === 'employee' ? currentUser.name : '' });
-                    setActiveTab('details');
-                }
-            }, [client, isOpen, currentUser]);
-
-            useEffect(() => { if (activeTab === 'notes' && notesEndRef.current) notesEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [client?.notes, activeTab]);
-
-            if (!isOpen) return null;
-
+        const ClientModal = ({ client, isOpen, onClose, onSave, users, currentUser }) => {
+            const [d, setD] = useState({ name: '', phone: '', status: 'New', projects: [], source: 'مباشر', assignedTo: currentUser.role==='employee'?currentUser.name:'' });
+            useEffect(() => { if (client) setD(client); else setD({ name: '', phone: '', status: 'New', projects: [], source: 'مباشر', assignedTo: currentUser.role==='employee'?currentUser.name:'' }); }, [client]);
+            
             const toggleProject = (p) => {
-                const cur = safeArr(formData.projects);
-                setFormData({ ...formData, projects: cur.includes(p) ? cur.filter(x => x !== p) : [...cur, p] });
+                const curr = d.projects || [];
+                setD({ ...d, projects: curr.includes(p) ? curr.filter(x => x !== p) : [...curr, p] });
             };
 
             return (
-                <div className="fixed inset-0 bg-brand-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row overflow-hidden border border-white/20">
-                        <div className={`flex-1 flex flex-col bg-white ${client ? 'md:w-1/2' : 'w-full'} overflow-hidden`}>
-                            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white"><h3 className="text-xl font-black text-brand-900">{client ? 'تحرير بيانات' : 'إضافة عميل'}</h3><button onClick={onClose}><Icon name="x" className="text-gray-400 hover:text-red-500" /></button></div>
-                            <div className="flex-1 overflow-y-auto p-6">
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-xs font-bold text-gray-700 block mb-1">الاسم <span className="text-red-500">*</span></label><input className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-900" value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} /></div>
-                                        <div><label className="text-xs font-bold text-gray-700 block mb-1">الجوال <span className="text-red-500">*</span></label><input className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-900 date-en" value={formData.phone} onChange={e=>setFormData({...formData, phone:e.target.value})} /></div>
-                                    </div>
-                                    <div><label className="text-xs font-bold text-gray-700 block mb-2">المشاريع <span className="text-red-500">*</span></label><div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`flex items-center gap-2 p-3 rounded-xl border text-sm transition-all ${(safeArr(formData.projects)).includes(p)?'bg-brand-900 text-white border-brand-900':'bg-white text-gray-600 border-gray-200'}`}><div className={`w-4 h-4 rounded border flex items-center justify-center ${(safeArr(formData.projects)).includes(p)?'border-white bg-white/20':'border-gray-300'}`}>{(safeArr(formData.projects)).includes(p)&&<Icon name="check" size={12}/>}</div>{safeStr(p)}</button>))}</div></div>
-                                    <div><label className="text-xs font-bold text-gray-700 block mb-1">المصدر</label><select className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-900" value={formData.source} onChange={e=>setFormData({...formData, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-                                    {client && (
-                                        <div className="pt-6 border-t border-gray-100 space-y-4 animate-fade-in">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div><label className="text-xs font-bold text-gray-700 block mb-1">رقم الوحدة</label><input className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-900" value={formData.unitNumber||''} onChange={e=>setFormData({...formData, unitNumber:e.target.value})} /></div>
-                                                <div><label className="text-xs font-bold text-gray-700 block mb-1">الشراء</label><select className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-900" value={formData.purchaseType||''} onChange={e=>setFormData({...formData, purchaseType:e.target.value})}><option value="">--</option>{PURCHASE_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select></div>
-                                            </div>
-                                            <div><label className="text-xs font-bold text-gray-700 block mb-1">الحالة</label><select className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-900" value={formData.status} onChange={e=>setFormData({...formData, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
-                                        </div>
-                                    )}
-                                    <div><label className="text-xs font-bold text-gray-700 block mb-1">إسناد إلى</label><select disabled={currentUser.role!=='admin'} className={`w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none ${currentUser.role!=='admin'?'opacity-60':''}`} value={formData.assignedTo} onChange={e=>setFormData({...formData, assignedTo:e.target.value})}><option value="">--</option>{users.map(u=><option key={u.id} value={u.name}>{safeStr(u.name)}</option>)}</select></div>
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-brand-900">{client ? 'تعديل' : 'إضافة عميل'}</h3>
+                            <button onClick={onClose}><Icon name="x" /></button>
+                        </div>
+                        <div className="space-y-4">
+                            <input className="w-full bg-gray-50 border rounded-xl p-3 outline-none focus:border-brand-900" placeholder="الاسم" value={d.name} onChange={e=>setD({...d, name:e.target.value})} />
+                            <input className="w-full bg-gray-50 border rounded-xl p-3 outline-none focus:border-brand-900 date-en text-right" placeholder="05xxxxxxxx" value={d.phone} onChange={e=>setD({...d, phone:e.target.value})} />
+                            
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">المشاريع</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {PROJECT_LIST.map(p => (
+                                        <button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded-lg text-xs border transition ${safeArr(d.projects).includes(p) ? 'bg-brand-900 text-white' : 'text-gray-600'}`}>{p}</button>
+                                    ))}
                                 </div>
                             </div>
-                            <div className="p-5 border-t border-gray-100 flex gap-3"><button onClick={()=>onSave(formData)} disabled={(safeArr(formData.projects)).length===0} className="flex-1 bg-brand-900 text-white py-3.5 rounded-xl font-bold hover:bg-brand-800 transition flex items-center justify-center gap-2 shadow-lg shadow-brand-900/20 disabled:opacity-50"><Icon name="save" size={18} className="text-accent-400"/> حفظ</button></div>
-                        </div>
-                        {client && (
-                            <div className="w-full md:w-1/2 flex flex-col border-r border-gray-100 bg-[#f8fafc]">
-                                <div className="flex border-b border-gray-100 bg-white">
-                                    <button onClick={()=>setActiveTab('details')} className="md:hidden flex-1 py-4 text-sm font-bold text-gray-400">البيانات</button>
-                                    <button onClick={()=>setActiveTab('notes')} className={`flex-1 py-4 text-sm font-bold ${activeTab==='notes'?'text-brand-900 border-b-2 border-brand-900 bg-gray-50':'text-gray-400'}`}>ملاحظات</button>
-                                    <button onClick={()=>setActiveTab('tasks')} className={`flex-1 py-4 text-sm font-bold ${activeTab==='tasks'?'text-brand-900 border-b-2 border-brand-900 bg-gray-50':'text-gray-400'}`}>مهام</button>
+
+                            <select className="w-full bg-gray-50 border rounded-xl p-3" value={d.source} onChange={e=>setD({...d, source:e.target.value})}>
+                                {CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
+                            </select>
+
+                            {client && (
+                                <div className="pt-4 border-t space-y-4">
+                                    <input className="w-full bg-gray-50 border rounded-xl p-3" placeholder="رقم الوحدة" value={d.unitNumber||''} onChange={e=>setD({...d, unitNumber:e.target.value})} />
+                                    <select className="w-full bg-gray-50 border rounded-xl p-3" value={d.purchaseType||''} onChange={e=>setD({...d, purchaseType:e.target.value})}>
+                                        <option value="">طريقة الشراء</option>
+                                        {PURCHASE_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+                                    </select>
+                                    <select className="w-full bg-gray-50 border rounded-xl p-3" value={d.status} onChange={e=>setD({...d, status:e.target.value})}>
+                                        {STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+                                    </select>
                                 </div>
-                                <div className="flex-1 overflow-hidden relative">
-                                    {activeTab==='notes' && (
-                                        <div className="h-full flex flex-col">
-                                            <div className="flex-1 overflow-y-auto p-5 space-y-4">{client.notes ? Object.entries(client.notes).map(([k,n])=>(<div key={k} className={`flex flex-col ${n.author===currentUser.name?'items-start':'items-end'}`}><div className={`max-w-[85%] p-3.5 rounded-2xl text-sm shadow-sm ${n.author===currentUser.name?'bg-white text-gray-800 rounded-tr-none border border-gray-100':'bg-brand-900 text-white rounded-tl-none'}`}><div className="flex justify-between items-center gap-4 mb-1 border-b border-white/10 pb-1"><span className="font-bold text-[10px]">{safeStr(n.author)}</span><span className="text-[10px] opacity-60 date-en">{new Date(n.timestamp).toLocaleDateString()}</span></div><p className="whitespace-pre-wrap">{safeStr(n.text)}</p></div></div>)):<div className="h-full flex items-center justify-center text-gray-300">لا توجد ملاحظات</div>}<div ref={notesEndRef}/></div>
-                                            <div className="p-4 border-t border-gray-100 bg-white flex gap-3"><input className="flex-1 bg-gray-50 rounded-xl px-4 outline-none border border-gray-100" placeholder="ملاحظة..." value={noteText} onChange={e=>setNoteText(e.target.value)} /><button onClick={()=>{if(noteText.trim()){onAddNote(client.id,noteText);setNoteText('')}}} className="p-3 bg-brand-900 text-white rounded-xl"><Icon name="send" size={18} className="rtl:rotate-180"/></button></div>
-                                        </div>
-                                    )}
-                                    {activeTab==='tasks' && (
-                                        <div className="h-full flex flex-col">
-                                            <div className="flex-1 overflow-y-auto p-5 space-y-3">{client.tasks ? Object.entries(client.tasks).map(([k,t])=>(<div key={k} className="flex items-center gap-3 p-4 bg-white border border-gray-100 rounded-xl"><button onClick={()=>onToggleTask(client.id,k,t.completed)} className={t.completed?'text-green-500':'text-gray-300'}>{t.completed?<Icon name="check-square" size={20}/>:<div className="w-5 h-5 border-2 border-current rounded-md"/>}</button><span className={`flex-1 text-sm ${t.completed?'line-through text-gray-400':'text-gray-800'}`}>{safeStr(t.text)}</span><button onClick={()=>onDeleteTask(client.id,k)} className="text-red-300 hover:text-red-500"><Icon name="trash-2" size={16}/></button></div>)):<div className="h-full flex items-center justify-center text-gray-300">لا توجد مهام</div>}</div>
-                                            <div className="p-4 border-t border-gray-100 bg-white flex gap-3"><input className="flex-1 bg-gray-50 rounded-xl px-4 outline-none border border-gray-100" placeholder="مهمة..." value={taskText} onChange={e=>setTaskText(e.target.value)} /><button onClick={()=>{if(taskText.trim()){onAddTask(client.id,taskText);setTaskText('')}}} className="p-3 bg-brand-900 text-white rounded-xl"><Icon name="plus" size={18}/></button></div>
-                                        </div>
-                                    )}
-                                    {activeTab==='details' && <div className="hidden md:flex h-full items-center justify-center text-gray-400">اختر تبويب للمتابعة</div>}
-                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">المسؤول</label>
+                                <select className="w-full bg-gray-50 border rounded-xl p-3 disabled:opacity-50" value={d.assignedTo} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role !== 'admin'}>
+                                    <option value="">بدون إسناد</option>
+                                    {users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
+                                </select>
                             </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
 
-        // --- Login ---
-        const Login = () => {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [loading, setLoading] = useState(false);
-            const [error, setError] = useState('');
-            const [showConfig, setShowConfig] = useState(false);
-
-            const handleLogin = async (e) => {
-                e.preventDefault(); setLoading(true); setError('');
-                try { await window.CRM_SERVICES.auth.login(email, password); } 
-                catch (err) {
-                    console.error(err);
-                    let msg = err.code || err.message;
-                    if (err.code?.includes('auth/invalid-credential')) msg = 'بيانات الدخول غير صحيحة';
-                    else if (err.code?.includes('auth/user-not-found')) msg = 'المستخدم غير موجود';
-                    else if (err.message?.includes('API key')) msg = 'مفتاح الربط (API Key) غير صالح. استخدم زر الترس بالأعلى.';
-                    setError(msg);
-                    setLoading(false);
-                }
-            };
-
-            const Logo = () => (
-                <div className="w-20 h-20 bg-brand-900 rounded-tr-3xl rounded-bl-3xl mx-auto flex items-center justify-center text-accent-500 mb-6 shadow-xl shadow-brand-900/30 overflow-hidden">
-                    <img src="./logo.png" alt="Boyoticom" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
-                    <Icon name="building-2" size={40} className="hidden" />
-                </div>
-            );
-
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4 relative overflow-hidden">
-                    <button onClick={()=>setShowConfig(true)} className="absolute top-4 left-4 p-2 text-gray-300 hover:text-brand-900 transition"><Icon name="settings" size={20}/></button>
-                    {showConfig && <ConfigModal onClose={()=>setShowConfig(false)} />}
-                    <div className="bg-white p-8 md:p-12 rounded-3xl shadow-2xl w-full max-w-md text-center border border-gray-100 relative z-10">
-                        <Logo />
-                        <h1 className="text-3xl font-black text-brand-900 mb-1">بيوتكم العقارية</h1>
-                        <p className="text-gray-500 mb-8 font-medium">نظام إدارة العملاء الداخلي</p>
-                        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm border border-red-100 font-bold" dir="auto">{error}</div>}
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <input type="email" required placeholder="البريد الإلكتروني" className="w-full p-4 border border-gray-200 rounded-xl outline-none focus:border-brand-900 bg-gray-50 focus:bg-white date-en" value={email} onChange={e => setEmail(e.target.value)} />
-                            <input type="password" required placeholder="كلمة المرور" className="w-full p-4 border border-gray-200 rounded-xl outline-none focus:border-brand-900 bg-gray-50 focus:bg-white date-en" value={password} onChange={e => setPassword(e.target.value)} />
-                            <button disabled={loading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg shadow-brand-900/20">{loading ? 'جاري التحقق...' : 'تسجيل الدخول'}</button>
-                        </form>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- Layout ---
-        const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
-            const [sidebarOpen, setSidebarOpen] = useState(false);
-            const NavItem = ({ id, icon, label }) => (<button onClick={() => { onNavigate(id); setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-bold ${currentPage === id ? 'bg-brand-900 text-white shadow-lg shadow-brand-900/20' : 'text-gray-500 hover:bg-white hover:text-brand-900'}`}><Icon name={icon} size={20} className={currentPage === id ? "text-accent-400" : ""} /> <span>{label}</span></button>);
-            const Logo = () => (<div className="w-14 h-14 bg-brand-900 rounded-tr-2xl rounded-bl-2xl flex items-center justify-center text-accent-500 mb-3 shadow-lg shadow-brand-900/20 overflow-hidden"><img src="./logo.png" alt="Boyoticom" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} /><Icon name="building-2" size={32} className="hidden" /></div>);
-            return (
-                <div className="min-h-screen bg-[#f8fafc] flex">
-                    {sidebarOpen && <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden" onClick={() => setSidebarOpen(false)} />}
-                    <aside className={`fixed md:sticky top-0 h-screen w-72 bg-[#ffffff] border-l border-gray-100 z-50 transition-transform ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
-                        <div className="p-8 flex flex-col h-full">
-                            <div className="flex flex-col items-center justify-center mb-10 text-brand-900"><Logo /><h1 className="text-2xl font-black text-brand-900">بيوتكم</h1><span className="text-xs text-accent-600 font-bold tracking-[0.2em] uppercase">Boyoticom</span></div>
-                            <nav className="flex-1 space-y-2"><NavItem id="dashboard" icon="layout-dashboard" label="لوحة التحكم" /><NavItem id="clients" icon="users" label="العملاء والطلبات" />{user.role === 'admin' && <NavItem id="users" icon="shield" label="الموظفين" />}</nav>
-                            <div className="pt-6 border-t border-gray-100 mt-auto"><button onClick={onLogout} className="w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 py-2.5 rounded-lg text-sm font-bold"><Icon name="log-out" size={16} /> خروج</button></div>
+                            <button onClick={()=>onSave(d)} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold hover:bg-brand-800">حفظ</button>
                         </div>
-                    </aside>
-                    <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-                        <header className="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center shrink-0"><div className="flex items-center gap-2"><div className="w-8 h-8 bg-brand-900 rounded-lg flex items-center justify-center text-accent-500"><Icon name="building-2" size={18} /></div><span className="font-bold text-brand-900">بيوتكم</span></div><button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-600"><Icon name="menu" size={24} /></button></header>
-                        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#f8fafc]"><div className="max-w-7xl mx-auto animate-fade-in">{children}</div></div>
-                    </main>
+                    </div>
                 </div>
-            );
-        };
-
-        // --- Main App ---
-        const App = () => {
-            const [servicesReady, setServicesReady] = useState(!!window.CRM_SERVICES);
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [currentPage, setCurrentPage] = useState('dashboard');
-            const [clients, setClients] = useState([]);
-            const [users, setUsers] = useState([]);
-            const [modalData, setModalData] = useState({ open: false, client: undefined });
-
-            // Wait for Firebase Service Injection
-            useEffect(() => {
-                if (!servicesReady) {
-                    const handleReady = () => setServicesReady(true);
-                    window.addEventListener('firebase-ready', handleReady);
-                    return () => window.removeEventListener('firebase-ready', handleReady);
-                }
-            }, [servicesReady]);
-
-            useEffect(() => {
-                if (!servicesReady) return;
-
-                let unsubClients = () => {}, unsubUsers = () => {};
-                const unsubAuth = window.CRM_SERVICES.auth.onStateChange((u) => {
-                    setUser(u); setLoading(false);
-                    if (u) {
-                        unsubClients = window.CRM_SERVICES.db.getClients(setClients);
-                        unsubUsers = window.CRM_SERVICES.db.getUsers(setUsers);
-                    } else { setClients([]); setUsers([]); }
-                });
-                return () => { unsubAuth(); unsubClients(); unsubUsers(); };
-            }, [servicesReady]);
-
-            const handleSave = async (data) => {
-                try {
-                    if (modalData.client) await window.CRM_SERVICES.db.updateClient(modalData.client.id, data);
-                    else await window.CRM_SERVICES.db.addClient({ ...data, dateAdded: new Date().toISOString(), addedBy: user.email, assignedTo: data.assignedTo || (user.role === 'employee' ? user.name : '') });
-                    setModalData({ open: false, client: undefined });
-                } catch (e) { alert('خطأ في الحفظ'); }
-            };
-
-            const handleNote = async (cid, txt) => { const c = clients.find(x => x.id === cid); if (c) { const notes = { ...(c.notes || {}), [Date.now()]: { text: txt, author: user.name, timestamp: new Date().toISOString() } }; await window.CRM_SERVICES.db.updateClient(cid, { notes }); if (modalData.client?.id === cid) setModalData({ ...modalData, client: { ...c, notes } }); } };
-            const handleTask = async (cid, txt) => { const c = clients.find(x => x.id === cid); if (c) { const tasks = { ...(c.tasks || {}), [Date.now()]: { text: txt, completed: false } }; await window.CRM_SERVICES.db.updateClient(cid, { tasks }); if (modalData.client?.id === cid) setModalData({ ...modalData, client: { ...c, tasks } }); } };
-            const toggleTask = async (cid, tid, st) => { const c = clients.find(x => x.id === cid); if(c && c.tasks) { const tasks = {...c.tasks, [tid]: {...c.tasks[tid], completed: !st}}; await window.CRM_SERVICES.db.updateClient(cid, {tasks}); if (modalData.client?.id === cid) setModalData({ ...modalData, client: { ...c, tasks } }); } };
-            const deleteTask = async (cid, tid) => { const c = clients.find(x => x.id === cid); if(c && c.tasks) { const tasks = {...c.tasks}; delete tasks[tid]; await window.CRM_SERVICES.db.updateClient(cid, {tasks}); if (modalData.client?.id === cid) setModalData({ ...modalData, client: { ...c, tasks } }); } };
-
-            if (!servicesReady) return <div className="flex items-center justify-center h-screen text-brand-900 font-bold">جاري تحميل الخدمات...</div>;
-            if (loading) return <div className="flex items-center justify-center h-screen text-brand-900 font-bold">جاري الاتصال...</div>;
-            if (!user) return <Login />;
-
-            return (
-                <Layout user={user} onLogout={window.CRM_SERVICES.auth.logout} currentPage={currentPage} onNavigate={setCurrentPage}>
-                    <ErrorBoundary>
-                        {currentPage === 'dashboard' && <Dashboard clients={clients} />}
-                        {currentPage === 'clients' && <ClientList clients={clients} users={users} currentUser={user} onAdd={() => setModalData({ open: true, client: undefined })} onEdit={(c) => setModalData({ open: true, client: c })} onDelete={(id) => confirm('حذف؟') && window.CRM_SERVICES.db.deleteClient(id)} />}
-                        {currentPage === 'users' && <div className="text-center p-10 bg-white rounded-2xl"><h2 className="text-xl font-bold mb-4 text-brand-900">الموظفين</h2><p className="text-gray-500 mb-4 text-sm">أضف حسابات جديدة من Firebase Authentication وسيظهرون هنا تلقائياً</p>{users.map(u=><div key={u.id} className="p-4 border mb-2 rounded-xl bg-gray-50 flex justify-between items-center"><div><div className="font-bold text-brand-900">{safeStr(u.name)}</div><div className="text-xs text-gray-500 date-en">{safeStr(u.email)}</div></div><span className="text-xs bg-brand-900 text-white px-3 py-1 rounded-lg">{safeStr(u.role)}</span></div>)}</div>}
-                        <ClientModal isOpen={modalData.open} onClose={() => setModalData({ open: false, client: undefined })} client={modalData.client} onSave={handleSave} users={users} currentUser={user} onAddNote={handleNote} onAddTask={handleTask} onToggleTask={toggleTask} onDeleteTask={deleteTask} />
-                    </ErrorBoundary>
-                </Layout>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 </body>
 </html>
+    
