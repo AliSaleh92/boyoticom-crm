@@ -333,10 +333,14 @@
                                 <span>إضافة موظف يدوياً (عن طريق UID)</span>
                                 <button onClick={()=>setShowAdd(false)}><Icon name="x" size={16}/></button>
                             </div>
-                            <form onSubmit={handleManualAdd} className="grid md:grid-cols-4 gap-3">
+                            <form onSubmit={handleManualAdd} className="grid md:grid-cols-5 gap-3">
                                 <input required className="p-2 border rounded bg-gray-50" placeholder="الاسم" value={newUser.name} onChange={e=>setNewUser({...newUser, name: e.target.value})} />
                                 <input required className="p-2 border rounded bg-gray-50 date-en text-right" placeholder="البريد الإلكتروني" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} />
                                 <input required className="p-2 border rounded bg-gray-50 date-en text-right" placeholder="User UID (من فايربيس)" value={newUser.uid} onChange={e=>setNewUser({...newUser, uid: e.target.value})} />
+                                <select className="p-2 border rounded bg-gray-50 outline-none" value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})}>
+                                    <option value="employee">موظف مبيعات</option>
+                                    <option value="admin">مسؤول</option>
+                                </select>
                                 <button className="bg-brand-900 text-white font-bold rounded p-2">حفظ</button>
                             </form>
                             <p className="text-xs text-gray-500 mt-2">تجد الـ UID في صفحة Authentication بجانب البريد الإلكتروني للمستخدم.</p>
