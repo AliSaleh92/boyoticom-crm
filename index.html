@@ -80,7 +80,7 @@
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getDatabase, ref, set, push, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // --- إعدادات Firebase (تم التحديث بالمفاتيح الجديدة) ---
+        // --- إعدادات Firebase (Boyoticom-15c4b) ---
         const defaultConfig = {
           apiKey: "AIzaSyAOMnl9ikDMngZZH-eSa3ldqtDCh6qsy_U",
           authDomain: "boyoticom-15c4b.firebaseapp.com",
@@ -91,7 +91,7 @@
           appId: "1:433583401372:web:2d483367ad0e0184a10059"
         };
 
-        // Load saved config from localStorage if available (The "Gear Icon" feature)
+        // Load saved config from localStorage if available
         let firebaseConfig = defaultConfig;
         try {
             const savedConfig = localStorage.getItem('boyoticom_firebase_config');
@@ -159,6 +159,7 @@
                     getUsers: (cb) => onValue(ref(db, 'users'), s => cb(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []))
                 }
             };
+            // Signal that services are ready
             window.dispatchEvent(new Event('firebase-ready'));
         } catch (e) {
             console.error("Firebase Init Error:", e);
@@ -192,7 +193,7 @@
             return <i data-lucide={name} width={size} height={size} className={className}></i>;
         };
 
-        // --- Config Modal (The Gear Icon Feature) ---
+        // --- Config Modal ---
         const ConfigModal = ({ onClose }) => {
             const [configStr, setConfigStr] = useState('');
             return (
@@ -203,24 +204,24 @@
                             <button onClick={onClose}><Icon name="x" /></button>
                         </div>
                         <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                            تم وضع مفاتيح الربط تلقائياً. استخدم هذا المربع فقط إذا كنت تريد تغيير المشروع يدوياً.
+                            استخدم هذا المربع لتحديث مفاتيح الربط يدوياً.
                         </p>
                         <textarea 
                             className="w-full h-48 bg-gray-50 border-2 border-gray-200 focus:border-brand-900 p-3 rounded-lg text-xs font-mono mb-4 text-left dir-ltr outline-none"
-                            placeholder='const firebaseConfig = { apiKey: "AIza...", ... };'
+                            placeholder='const firebaseConfig = { ... };'
                             value={configStr}
                             onChange={e=>setConfigStr(e.target.value)}
                         />
                         <div className="flex gap-2">
                             <button onClick={()=>window.CRM_SERVICES.saveConfig(configStr)} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 transition">حفظ وإعادة التشغيل</button>
-                            <button onClick={()=>window.CRM_SERVICES.resetConfig()} className="px-4 py-3 text-red-500 text-sm hover:bg-red-50 rounded-lg">استعادة الافتراضي</button>
+                            <button onClick={()=>window.CRM_SERVICES.resetConfig()} className="px-4 py-3 text-red-500 text-sm hover:bg-red-50 rounded-lg">استعادة</button>
                         </div>
                     </div>
                 </div>
             );
         };
 
-        // --- Main Components ---
+        // --- Dashboard ---
         const Dashboard = ({ clients }) => {
             const totalClients = clients.length;
             const newClients = clients.filter(c => c.status === 'New').length;
@@ -277,6 +278,7 @@
             );
         };
 
+        // --- Client List ---
         const ClientList = ({ clients, users, currentUser, onAdd, onEdit, onDelete }) => {
             const [search, setSearch] = useState('');
             const [filterStatus, setFilterStatus] = useState('');
@@ -341,6 +343,7 @@
             );
         };
 
+        // --- Client Modal ---
         const ClientModal = ({ client, isOpen, onClose, onSave, users, currentUser, onAddNote, onAddTask, onToggleTask, onDeleteTask }) => {
             const [formData, setFormData] = useState({ name: '', phone: '', status: 'New', projects: [], source: 'مباشر', assignedTo: '' });
             const [activeTab, setActiveTab] = useState('details');
@@ -421,6 +424,7 @@
             );
         };
 
+        // --- Login ---
         const Login = () => {
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
@@ -468,6 +472,7 @@
             );
         };
 
+        // --- Layout ---
         const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
             const [sidebarOpen, setSidebarOpen] = useState(false);
             const NavItem = ({ id, icon, label }) => (<button onClick={() => { onNavigate(id); setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-bold ${currentPage === id ? 'bg-brand-900 text-white shadow-lg shadow-brand-900/20' : 'text-gray-500 hover:bg-white hover:text-brand-900'}`}><Icon name={icon} size={20} className={currentPage === id ? "text-accent-400" : ""} /> <span>{label}</span></button>);
@@ -490,7 +495,9 @@
             );
         };
 
+        // --- Main App ---
         const App = () => {
+            const [servicesReady, setServicesReady] = useState(!!window.CRM_SERVICES);
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [currentPage, setCurrentPage] = useState('dashboard');
@@ -498,7 +505,18 @@
             const [users, setUsers] = useState([]);
             const [modalData, setModalData] = useState({ open: false, client: undefined });
 
+            // Wait for Firebase Service Injection
             useEffect(() => {
+                if (!servicesReady) {
+                    const handleReady = () => setServicesReady(true);
+                    window.addEventListener('firebase-ready', handleReady);
+                    return () => window.removeEventListener('firebase-ready', handleReady);
+                }
+            }, [servicesReady]);
+
+            useEffect(() => {
+                if (!servicesReady) return;
+
                 let unsubClients = () => {}, unsubUsers = () => {};
                 const unsubAuth = window.CRM_SERVICES.auth.onStateChange((u) => {
                     setUser(u); setLoading(false);
@@ -508,7 +526,7 @@
                     } else { setClients([]); setUsers([]); }
                 });
                 return () => { unsubAuth(); unsubClients(); unsubUsers(); };
-            }, []);
+            }, [servicesReady]);
 
             const handleSave = async (data) => {
                 try {
@@ -523,6 +541,7 @@
             const toggleTask = async (cid, tid, st) => { const c = clients.find(x => x.id === cid); if(c && c.tasks) { const tasks = {...c.tasks, [tid]: {...c.tasks[tid], completed: !st}}; await window.CRM_SERVICES.db.updateClient(cid, {tasks}); if (modalData.client?.id === cid) setModalData({ ...modalData, client: { ...c, tasks } }); } };
             const deleteTask = async (cid, tid) => { const c = clients.find(x => x.id === cid); if(c && c.tasks) { const tasks = {...c.tasks}; delete tasks[tid]; await window.CRM_SERVICES.db.updateClient(cid, {tasks}); if (modalData.client?.id === cid) setModalData({ ...modalData, client: { ...c, tasks } }); } };
 
+            if (!servicesReady) return <div className="flex items-center justify-center h-screen text-brand-900 font-bold">جاري تحميل الخدمات...</div>;
             if (loading) return <div className="flex items-center justify-center h-screen text-brand-900 font-bold">جاري الاتصال...</div>;
             if (!user) return <Login />;
 
@@ -541,3 +560,4 @@
     </script>
 </body>
 </html>
+  
