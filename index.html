@@ -40,7 +40,7 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- Libraries (UMD) -->
+    <!-- Libraries (UMD) - No Import Maps to avoid version conflicts -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -81,19 +81,32 @@
 </head>
 <body>
     <div id="global-error">
+        <div style="color: #e11d48; margin-bottom: 10px;">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        </div>
         <h2 style="color: #2C3340; font-size: 24px; font-weight: bold; margin-bottom: 10px;">عذراً، حدث خطأ في التشغيل</h2>
-        <p id="error-msg" style="color: #666; margin-bottom: 20px; direction: ltr;"></p>
-        <button onclick="window.location.reload()" style="background: #2C3340; color: white; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;">تحديث الصفحة</button>
+        <p id="error-msg" style="color: #666; margin-bottom: 20px; direction: ltr; background: #f1f5f9; padding: 10px; rounded: 8px; font-family: monospace; font-size: 12px; max-width: 90%; overflow: auto;"></p>
+        <button onclick="window.location.reload()" style="background: #2C3340; color: white; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold;">تحديث الصفحة</button>
     </div>
 
     <div id="root"></div>
 
     <script>
         window.onerror = function(msg, url, line, col, error) {
-            if (msg && msg.includes('ResizeObserver')) return;
+            // Ignore ResizeObserver loop limit exceeded (benign error)
+            if (msg && typeof msg === 'string' && msg.includes('ResizeObserver')) return;
+            
             document.getElementById('global-error').style.display = 'flex';
-            document.getElementById('error-msg').innerText = msg || 'Unknown Error';
+            document.getElementById('error-msg').innerText = msg + '\nLine: ' + line;
             return false;
+        };
+        window.onunhandledrejection = function(event) {
+             document.getElementById('global-error').style.display = 'flex';
+             document.getElementById('error-msg').innerText = 'Promise Rejection: ' + event.reason;
         };
     </script>
 
@@ -160,7 +173,7 @@
                             return { id: cred.user.uid, email: cred.user.email, ...userData };
                         } catch (error) {
                             console.error("Login error:", error);
-                            throw error;
+                            throw error; // Propagate error to React
                         }
                     },
                     logout: () => signOut(auth),
@@ -196,19 +209,20 @@
         const Recharts = window.Recharts || {};
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } = Recharts;
         
-        // --- Safe Rendering Helpers (Critical for Fix #130) ---
+        // --- Safe Rendering Helpers (Critical for Fix #130 & Firebase Objects) ---
         const safeStr = (val) => {
             if (val === null || val === undefined) return '';
             if (typeof val === 'string') return val;
             if (typeof val === 'number') return String(val);
-            if (typeof val === 'object') return ''; // Protect against object rendering
+            if (typeof val === 'boolean') return val ? 'Yes' : 'No';
             return ''; 
         };
         
+        // Converts Firebase "Array-Like Objects" {0: 'a', 1: 'b'} back to Arrays ['a', 'b']
         const safeArr = (val) => {
             if (!val) return [];
             if (Array.isArray(val)) return val;
-            if (typeof val === 'object') return Object.values(val); // Handle Firebase array-like objects
+            if (typeof val === 'object') return Object.values(val); 
             return [];
         };
 
@@ -225,7 +239,7 @@
                                     <Icon name="alert-triangle" size={32} />
                                 </div>
                                 <h1 className="text-xl font-bold text-brand-900 mb-2">حدث خطأ غير متوقع</h1>
-                                <p className="text-gray-500 text-sm mb-4">نعتذر عن ذلك، يرجى تحديث الصفحة أو التواصل مع الدعم الفني.</p>
+                                <p className="text-gray-500 text-sm mb-4">نعتذر عن ذلك، يرجى تحديث الصفحة.</p>
                                 <div className="bg-gray-100 p-2 rounded text-[10px] text-gray-500 overflow-auto max-h-20 mb-4 dir-ltr text-left">
                                     {this.state.error?.toString()}
                                 </div>
@@ -321,9 +335,7 @@
                 } catch (err) {
                     console.error(err);
                     let msg = 'خطأ في البريد أو كلمة المرور';
-                    if (err.code === 'auth/user-not-found') msg = 'المستخدم غير موجود';
-                    if (err.code === 'auth/wrong-password') msg = 'كلمة المرور غير صحيحة';
-                    if (err.code === 'auth/too-many-requests') msg = 'محاولات كثيرة، حاول لاحقاً';
+                    if (err.code) msg += ` (${err.code})`;
                     setLoginError(msg);
                     setLoginLoading(false);
                 }
@@ -478,6 +490,19 @@
         const Dashboard = ({ clients }) => {
             const statusData = STATUS_LIST.map(s => ({name: s.label, count: clients.filter(c => c.status === s.key).length})).filter(d=>d.count>0);
             const COLORS = ['#2C3340', '#CE9B52', '#E6BC76', '#94a3b8'];
+            
+            // Safer Project Stats Calculation
+            const projectStats = {};
+            clients.forEach(c => {
+                // Use safeArr to handle potential object-arrays from Firebase
+                safeArr(c.projects).forEach(p => {
+                    const pName = safeStr(p); // Ensure string
+                    if(pName) projectStats[pName] = (projectStats[pName] || 0) + 1;
+                });
+            });
+
+            const projectData = Object.entries(projectStats).map(([name, value]) => ({ name, value }));
+
             return (
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -486,8 +511,34 @@
                         <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-gray-500 text-sm mb-1">صفقات</div><div className="text-3xl font-black text-emerald-600">{clients.filter(c=>c.status==='Sold').length}</div></div>
                     </div>
                     {window.Recharts && (
-                        <div className="h-80 bg-white p-4 rounded-2xl border shadow-sm" dir="ltr">
-                            <ResponsiveContainer><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><RechartsTooltip /><Bar dataKey="count" fill="#2C3340" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="bg-white p-6 rounded-2xl border shadow-sm lg:col-span-2">
+                                <h3 className="font-bold text-lg mb-4 text-brand-900">تحليل الحالات</h3>
+                                <div className="h-80" dir="ltr">
+                                    <ResponsiveContainer><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><RechartsTooltip /><Bar dataKey="count" fill="#2C3340" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-2xl border shadow-sm">
+                                <h3 className="font-bold text-lg mb-4 text-brand-900">المشاريع</h3>
+                                <div className="h-64" dir="ltr">
+                                    <ResponsiveContainer>
+                                        <PieChart>
+                                            <Pie data={projectData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                                {projectData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                            </Pie>
+                                            <RechartsTooltip />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="mt-4 space-y-2">
+                                    {projectData.map((entry, index) => (
+                                        <div key={index} className="flex justify-between text-xs">
+                                            <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{background: COLORS[index % COLORS.length]}}></span>{safeStr(entry.name)}</span>
+                                            <span className="font-bold">{entry.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -496,29 +547,66 @@
 
         const ClientList = ({ clients, users, currentUser, onAdd, onEdit }) => {
             const [search, setSearch] = useState('');
+            const [filterStatus, setFilterStatus] = useState('');
+            const [filterUser, setFilterUser] = useState('');
+
             const filtered = clients.filter(c => {
+                // 1. Permission Filter
                 if(currentUser.role === 'employee' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false;
-                return safeStr(c.name).includes(search) || safeStr(c.phone).includes(search);
+                
+                // 2. Search Filter (Safe)
+                const searchLower = safeStr(search).toLowerCase();
+                const nameLower = safeStr(c.name).toLowerCase();
+                const phoneStr = safeStr(c.phone);
+                const matchSearch = nameLower.includes(searchLower) || phoneStr.includes(searchLower);
+                
+                // 3. Dropdown Filters
+                const matchStatus = filterStatus ? c.status === filterStatus : true;
+                const matchUser = filterUser ? c.assignedTo === filterUser : true;
+                
+                return matchSearch && matchStatus && matchUser;
             });
+
             return (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-2xl font-bold text-brand-900">العملاء</h2>
                         <button onClick={onAdd} className="bg-brand-900 text-white px-4 py-2 rounded-xl flex items-center gap-2"><Icon name="plus" size={18}/> إضافة</button>
                     </div>
-                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex gap-2">
-                        <Icon name="search" className="text-gray-400" />
-                        <input className="flex-1 outline-none" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} />
+                    
+                    {/* Filters */}
+                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row gap-2">
+                        <div className="flex-1 flex items-center gap-2 bg-gray-50 border rounded-xl px-3">
+                            <Icon name="search" className="text-gray-400" />
+                            <input className="flex-1 bg-transparent outline-none py-2" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} />
+                        </div>
+                        <select className="bg-gray-50 border rounded-xl px-3 py-2 outline-none" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
+                            <option value="">كل الحالات</option>
+                            {STATUS_LIST.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                        </select>
+                        {currentUser.role === 'admin' && (
+                            <select className="bg-gray-50 border rounded-xl px-3 py-2 outline-none" value={filterUser} onChange={e=>setFilterUser(e.target.value)}>
+                                <option value="">كل الموظفين</option>
+                                {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                            </select>
+                        )}
                     </div>
+
                     <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
                         <table className="w-full text-right">
-                            <thead className="bg-gray-50 text-brand-900 font-bold text-sm"><tr><th className="p-4">الاسم</th><th className="p-4">الحالة</th><th className="p-4">المسؤول</th><th className="p-4"></th></tr></thead>
+                            <thead className="bg-gray-50 text-brand-900 font-bold text-sm"><tr><th className="p-4">العميل</th><th className="p-4">المشاريع</th><th className="p-4">الحالة</th><th className="p-4">المسؤول</th><th className="p-4"></th></tr></thead>
                             <tbody className="divide-y">
                                 {filtered.map(c => (
                                     <tr key={c.id} className="hover:bg-gray-50">
                                         <td className="p-4">
                                             <div className="font-bold text-brand-900">{safeStr(c.name)}</div>
                                             <div className="text-xs text-gray-500 date-en">{safeStr(c.phone)}</div>
+                                        </td>
+                                        <td className="p-4 text-sm">
+                                            {/* Use safeArr to prevent crash if projects is malformed */}
+                                            {safeArr(c.projects).map((p,i) => (
+                                                <span key={i} className="block text-xs text-gray-600">• {safeStr(p)}</span>
+                                            ))}
                                         </td>
                                         <td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td>
                                         <td className="p-4 text-sm">{safeStr(c.assignedTo) || '-'}</td>
@@ -537,7 +625,7 @@
             useEffect(() => { if (client) setD(client); else setD({ name: '', phone: '', status: 'New', projects: [], source: 'مباشر', assignedTo: currentUser.role==='employee'?currentUser.name:'' }); }, [client]);
             
             const toggleProject = (p) => {
-                const curr = d.projects || [];
+                const curr = safeArr(d.projects); // Use safeArr
                 setD({ ...d, projects: curr.includes(p) ? curr.filter(x => x !== p) : [...curr, p] });
             };
 
