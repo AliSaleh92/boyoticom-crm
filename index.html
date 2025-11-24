@@ -106,18 +106,8 @@
         const exportToExcel = (data, fileName) => {
             const worksheet = XLSX.utils.json_to_sheet(data);
             const workbook = XLSX.utils.book_new();
-            
-            // Adjust column widths (Optional but good for Arabic)
-            const wscols = [
-                {wch: 20}, // A
-                {wch: 15}, // B
-                {wch: 20}, // C
-                {wch: 15}, // D
-                {wch: 20}, // E
-                {wch: 20}, // F
-            ];
+            const wscols = [{wch: 20}, {wch: 15}, {wch: 20}, {wch: 15}, {wch: 20}, {wch: 20}];
             worksheet['!cols'] = wscols;
-
             XLSX.utils.book_append_sheet(workbook, worksheet, "Clients");
             XLSX.writeFile(workbook, `${fileName}.xlsx`);
         };
@@ -135,7 +125,6 @@
         // --- LOGO COMPONENT ---
         const Logo = ({ size = 40, className = "" }) => {
             const [imgError, setImgError] = useState(false);
-
             if (imgError) {
                 return (
                     <div className={`bg-brand-900 rounded-2xl flex items-center justify-center text-accent-500 ${className}`} style={{ width: size, height: size }}>
@@ -143,16 +132,7 @@
                     </div>
                 );
             }
-
-            return (
-                <img 
-                    src="logo.png" 
-                    alt="Boyoticom" 
-                    className={`object-contain ${className}`} 
-                    style={{ width: size, height: size }}
-                    onError={() => setImgError(true)}
-                />
-            );
+            return <img src="logo.png" alt="Boyoticom" className={`object-contain ${className}`} style={{ width: size, height: size }} onError={() => setImgError(true)} />;
         };
 
         // --- ERROR BOUNDARY ---
@@ -185,6 +165,9 @@
         ];
         const PROJECT_LIST = ["بيوتكم 10", "بيوتكم 11", "بيوتكم 12", "بيوتكم 13", "بيوتكم 14"];
         const CLIENT_SOURCES = ["مباشر", "عقار", "اعلانات رقمية", "توصية صديق"];
+        
+        // *** SUPER ADMIN EMAIL (PROTECTED) ***
+        const SUPER_ADMIN_EMAIL = "asaleh@boyoticom.com";
 
         // --- LOGIN COMPONENT ---
         const Login = () => {
@@ -231,42 +214,32 @@
             );
         };
 
-        // --- DASHBOARD COMPONENT (UPDATED) ---
+        // --- DASHBOARD COMPONENT ---
         const Dashboard = ({ clients }) => {
-            // Stats Calculations
             const totalClients = clients.length;
-            
             const statusData = STATUS_LIST.map(s => ({
                 name: s.label, 
                 count: clients.filter(c => c.status === s.key).length,
                 key: s.key,
                 color: s.color
             }));
-
             const projectStats = {};
             clients.forEach(c => safeArr(c.projects).forEach(p => { const n = safeStr(p); if(n) projectStats[n] = (projectStats[n]||0)+1; }));
             const projectData = Object.entries(projectStats).map(([name, value]) => ({ name, value }));
-
             const sourceStats = {};
             clients.forEach(c => { const s = safeStr(c.source) || 'غير محدد'; sourceStats[s] = (sourceStats[s]||0)+1; });
             const sourceData = Object.entries(sourceStats).map(([name, value]) => ({ name, value }));
-
             const COLORS = ['#2C3340', '#CE9B52', '#E6BC76', '#94a3b8', '#475569', '#64748b'];
 
             return (
                 <div className="space-y-6">
-                    {/* Top Row: Total Clients Card */}
                     <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center">
                         <div>
                             <h2 className="text-lg font-bold opacity-80 mb-1">إجمالي العملاء</h2>
                             <div className="text-4xl font-black">{totalClients}</div>
                         </div>
-                        <div className="bg-white/10 p-4 rounded-full">
-                            <Icon name="users" size={32} />
-                        </div>
+                        <div className="bg-white/10 p-4 rounded-full"><Icon name="users" size={32} /></div>
                     </div>
-
-                    {/* Middle Row: All Status Cards */}
                     <div>
                         <h3 className="font-bold text-brand-900 mb-4 flex items-center gap-2"><Icon name="activity" size={18}/> حالة العملاء</h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -281,32 +254,19 @@
                             ))}
                         </div>
                     </div>
-
-                    {/* Bottom Row: Charts */}
                     {window.Recharts && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Status Chart */}
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
                                 <h3 className="font-bold text-brand-900 mb-4 text-sm">توزيع المشاريع</h3>
-                                <div className="h-64" dir="ltr">
-                                    <ResponsiveContainer><PieChart><Pie data={projectData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">{projectData.map((e,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer>
-                                </div>
+                                <div className="h-64" dir="ltr"><ResponsiveContainer><PieChart><Pie data={projectData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">{projectData.map((e,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div>
                             </div>
-
-                            {/* Sources Chart (NEW) */}
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
                                 <h3 className="font-bold text-brand-900 mb-4 text-sm">مصادر العملاء</h3>
-                                <div className="h-64" dir="ltr">
-                                    <ResponsiveContainer><PieChart><Pie data={sourceData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">{sourceData.map((e,i)=><Cell key={i} fill={COLORS[(i+2)%COLORS.length]}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer>
-                                </div>
+                                <div className="h-64" dir="ltr"><ResponsiveContainer><PieChart><Pie data={sourceData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">{sourceData.map((e,i)=><Cell key={i} fill={COLORS[(i+2)%COLORS.length]}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div>
                             </div>
-
-                            {/* Bar Chart */}
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
                                 <h3 className="font-bold text-brand-900 mb-4 text-sm">نظرة عامة</h3>
-                                <div className="h-64" dir="ltr">
-                                    <ResponsiveContainer><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis/><Tooltip/><Bar dataKey="count" fill="#2C3340" radius={[4,4,0,0]} barSize={30}/></BarChart></ResponsiveContainer>
-                                </div>
+                                <div className="h-64" dir="ltr"><ResponsiveContainer><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis/><Tooltip/><Bar dataKey="count" fill="#2C3340" radius={[4,4,0,0]} barSize={30}/></BarChart></ResponsiveContainer></div>
                             </div>
                         </div>
                     )}
@@ -318,36 +278,46 @@
         const ClientList = ({ clients, users, currentUser, onEdit, onAdd }) => {
             const [search, setSearch] = useState('');
             const [filterStatus, setFilterStatus] = useState('');
+            const [filterCreator, setFilterCreator] = useState('');
+            const [deleteId, setDeleteId] = useState(null); // State for delete modal
             
+            // Unique creators for filter
+            const creators = useMemo(() => [...new Set(clients.map(c => c.addedBy).filter(Boolean))], [clients]);
+
             const filtered = clients.filter(c => {
                 if(currentUser.role !== 'admin' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false;
                 const s = safeStr(search).toLowerCase();
                 const matchesSearch = safeStr(c.name).toLowerCase().includes(s) || safeStr(c.phone).includes(s);
                 const matchesStatus = filterStatus ? c.status === filterStatus : true;
-                return matchesSearch && matchesStatus;
+                const matchesCreator = filterCreator ? c.addedBy === filterCreator : true;
+                return matchesSearch && matchesStatus && matchesCreator;
             });
 
-            // Handle Excel Export
             const handleExport = () => {
                 const excelData = filtered.map(c => ({
                     'الاسم': c.name,
                     'رقم الهاتف': c.phone,
                     'المشاريع': safeArr(c.projects).join(', '),
                     'الحالة': STATUS_LIST.find(s=>s.key===c.status)?.label || c.status,
-                    'المسؤول': c.assignedTo || 'غير مسند',
+                    'المنشئ': c.addedBy || 'غير مسند',
                     'المصدر': c.source || '-',
                     'رقم الوحدة': c.unitNumber || '-',
-                    'تاريخ الإضافة': c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('ar-SA') : '-'
+                    'تاريخ الإضافة': c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'
                 }));
                 exportToExcel(excelData, `Boyoticom_Clients_${new Date().toISOString().slice(0,10)}`);
             };
 
-            // Helper to create WhatsApp Link
             const getWhatsAppLink = (phone) => {
                 let p = safeStr(phone).trim();
-                // Basic Saudi formatting: Remove leading 0, add 966
                 if(p.startsWith('0')) p = p.substring(1);
                 return `https://wa.me/966${p}`;
+            };
+
+            const confirmDelete = () => {
+                if (deleteId) {
+                    remove(ref(db, `clients/${deleteId}`));
+                    setDeleteId(null);
+                }
             };
 
             return (
@@ -355,7 +325,6 @@
                     <div className="flex justify-between items-center">
                         <h2 className="text-2xl font-bold text-brand-900">العملاء</h2>
                         <div className="flex gap-2">
-                             {/* RESTRICT EXPORT TO ADMIN ONLY */}
                              {currentUser.role === 'admin' && (
                                 <button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2">
                                     <Icon name="file-spreadsheet" size={18}/> تصدير Excel
@@ -366,12 +335,19 @@
                             </button>
                         </div>
                     </div>
-                    <div className="bg-white p-3 rounded-xl shadow-sm border flex gap-2">
-                        <input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 outline-none" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} />
+                    <div className="bg-white p-3 rounded-xl shadow-sm border flex flex-wrap gap-2">
+                        <input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 outline-none min-w-[200px]" placeholder="بحث بالاسم أو الرقم..." value={search} onChange={e=>setSearch(e.target.value)} />
                         <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
                             <option value="">كل الحالات</option>
                             {STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
                         </select>
+                        {/* CREATOR FILTER (ADMIN ONLY) */}
+                        {currentUser.role === 'admin' && (
+                            <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}>
+                                <option value="">كل المنشئين</option>
+                                {creators.map(c=><option key={c} value={c}>{c}</option>)}
+                            </select>
+                        )}
                     </div>
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                         <table className="w-full text-right">
@@ -379,9 +355,9 @@
                                 <tr>
                                     <th className="p-4">الاسم</th>
                                     <th className="p-4">المشاريع</th>
-                                    <th className="p-4">تاريخ الإضافة</th> 
+                                    <th className="p-4">تاريخ الإضافة</th>
                                     <th className="p-4">الحالة</th>
-                                    <th className="p-4">المسؤول</th>
+                                    <th className="p-4">اسم المنشئ</th> {/* Changed Header */}
                                     <th className="p-4"></th>
                                 </tr>
                             </thead>
@@ -392,33 +368,46 @@
                                             <div className="font-bold text-brand-900">{safeStr(c.name)}</div>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className="text-xs text-gray-500 date-en">{safeStr(c.phone)}</span>
-                                                
-                                                {/* Call Button */}
-                                                <a href={`tel:${safeStr(c.phone)}`} className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-full transition" title="اتصال">
-                                                    <Icon name="phone" size={14} />
-                                                </a>
-
-                                                {/* WhatsApp Button */}
-                                                <a href={getWhatsAppLink(c.phone)} target="_blank" rel="noreferrer" className="bg-green-50 text-green-600 hover:bg-green-100 p-1.5 rounded-full transition" title="واتساب">
-                                                    <Icon name="message-circle" size={14} />
-                                                </a>
+                                                <a href={`tel:${safeStr(c.phone)}`} className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-full transition" title="اتصال"><Icon name="phone" size={14} /></a>
+                                                <a href={getWhatsAppLink(c.phone)} target="_blank" rel="noreferrer" className="bg-green-50 text-green-600 hover:bg-green-100 p-1.5 rounded-full transition" title="واتساب"><Icon name="message-circle" size={14} /></a>
                                             </div>
                                         </td>
                                         <td className="p-4 text-sm text-gray-600">
                                             {safeArr(c.projects).map((p,i)=><div key={i}>• {safeStr(p)}</div>)}
                                         </td>
-                                        {/* Date Added Cell */}
-                                        <td className="p-4 text-xs text-gray-500">
-                                            {c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('ar-SA') : '-'}
+                                        {/* English Date Format */}
+                                        <td className="p-4 text-xs text-gray-500 date-en">
+                                            {c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'}
                                         </td>
                                         <td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td>
-                                        <td className="p-4 text-sm">{safeStr(c.assignedTo) || '-'}</td>
-                                        <td className="p-4 text-left"><button onClick={()=>onEdit(c)} className="text-brand-900 hover:bg-gray-100 p-2 rounded"><Icon name="edit" size={16}/></button></td>
+                                        <td className="p-4 text-sm text-gray-600 date-en">{safeStr(c.addedBy)}</td> {/* Show Creator Email */}
+                                        <td className="p-4 flex items-center gap-2">
+                                            <button onClick={()=>onEdit(c)} className="text-brand-900 hover:bg-gray-100 p-2 rounded"><Icon name="edit" size={16}/></button>
+                                            {/* Delete Button (Admin Only) */}
+                                            {currentUser.role === 'admin' && (
+                                                <button onClick={()=>setDeleteId(c.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Icon name="trash-2" size={16}/></button>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Delete Confirmation Modal */}
+                    {deleteId && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full text-center">
+                                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="trash-2" size={32}/></div>
+                                <h3 className="text-lg font-bold mb-2">هل أنت متأكد؟</h3>
+                                <p className="text-gray-500 mb-6">سيتم حذف هذا العميل نهائياً. لا يمكن التراجع عن هذا الإجراء.</p>
+                                <div className="flex gap-3 justify-center">
+                                    <button onClick={confirmDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700">نعم، حذف</button>
+                                    <button onClick={()=>setDeleteId(null)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold hover:bg-gray-300">إلغاء</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -426,13 +415,8 @@
         // --- BACKUP & RESTORE COMPONENT ---
         const BackupSettings = ({ clients, users }) => {
             const [importing, setImporting] = useState(false);
-
             const handleBackup = () => {
-                const data = {
-                    clients: clients,
-                    users: users,
-                    backupDate: new Date().toISOString()
-                };
+                const data = { clients: clients, users: users, backupDate: new Date().toISOString() };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement("a");
@@ -442,105 +426,48 @@
                 link.click();
                 document.body.removeChild(link);
             };
-
             const handleRestore = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                
                 if (!confirm("تحذير: استعادة النسخة الاحتياطية ستقوم بدمج البيانات. هل أنت متأكد؟")) return;
-
                 const reader = new FileReader();
                 reader.onload = async (event) => {
                     setImporting(true);
                     try {
                         const data = JSON.parse(event.target.result);
-                        if (data.clients) {
-                            for (const c of data.clients) {
-                                if (c.id) {
-                                    await update(ref(db, `clients/${c.id}`), c);
-                                }
-                            }
-                        }
-                        if (data.users) {
-                            for (const u of data.users) {
-                                if (u.id) {
-                                    await update(ref(db, `users/${u.id}`), u);
-                                }
-                            }
-                        }
+                        if (data.clients) { for (const c of data.clients) { if (c.id) await update(ref(db, `clients/${c.id}`), c); } }
+                        if (data.users) { for (const u of data.users) { if (u.id) await update(ref(db, `users/${u.id}`), u); } }
                         alert("تمت استعادة البيانات بنجاح!");
-                    } catch (error) {
-                        console.error(error);
-                        alert("حدث خطأ أثناء استعادة الملف. تأكد من صحة الملف.");
-                    }
+                    } catch (error) { alert("حدث خطأ أثناء استعادة الملف."); }
                     setImporting(false);
                 };
                 reader.readAsText(file);
             };
-
             return (
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold text-brand-900">الإعدادات والنسخ الاحتياطي</h2>
-                    
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="bg-blue-100 p-3 rounded-full text-blue-600"><Icon name="database" size={24}/></div>
-                            <div>
-                                <h3 className="font-bold text-lg text-brand-900">النسخ الاحتياطي للبيانات</h3>
-                                <p className="text-gray-500 text-sm">قم بتحميل نسخة كاملة من بيانات النظام (العملاء والموظفين) لحفظها بأمان.</p>
-                            </div>
-                        </div>
-                        <button onClick={handleBackup} className="w-full bg-brand-900 hover:bg-brand-800 text-white p-3 rounded-lg font-bold flex justify-center gap-2">
-                            <Icon name="download" /> تحميل نسخة احتياطية (JSON)
-                        </button>
+                        <button onClick={handleBackup} className="w-full bg-brand-900 hover:bg-brand-800 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><Icon name="download" /> تحميل نسخة احتياطية (JSON)</button>
                     </div>
-
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="bg-amber-100 p-3 rounded-full text-amber-600"><Icon name="upload-cloud" size={24}/></div>
-                            <div>
-                                <h3 className="font-bold text-lg text-brand-900">استعادة البيانات</h3>
-                                <p className="text-gray-500 text-sm">قم برفع ملف النسخة الاحتياطية لاسترجاع البيانات.</p>
-                            </div>
-                        </div>
-                        <div className="relative">
-                            <input 
-                                type="file" 
-                                accept=".json" 
-                                onChange={handleRestore}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                disabled={importing}
-                            />
-                            <div className="w-full border-2 border-dashed border-gray-300 hover:border-brand-900 bg-gray-50 p-6 rounded-lg text-center transition">
-                                {importing ? (
-                                    <span className="text-brand-900 font-bold">جاري الاستعادة...</span>
-                                ) : (
-                                    <span className="text-gray-600 flex items-center justify-center gap-2">
-                                        <Icon name="file-up" /> اضغط هنا لاختيار ملف النسخة الاحتياطية
-                                    </span>
-                                )}
-                            </div>
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative">
+                        <input type="file" accept=".json" onChange={handleRestore} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled={importing} />
+                        <div className="w-full border-2 border-dashed border-gray-300 hover:border-brand-900 bg-gray-50 p-6 rounded-lg text-center transition">
+                            {importing ? <span className="text-brand-900 font-bold">جاري الاستعادة...</span> : <span className="text-gray-600 flex items-center justify-center gap-2"><Icon name="file-up" /> استعادة نسخة احتياطية</span>}
                         </div>
                     </div>
                 </div>
             );
         };
 
-        // --- USERS COMPONENT ---
+        // --- USERS COMPONENT (UPDATED EDIT FLOW) ---
         const UsersList = ({ users, currentUser }) => {
             const [showAdd, setShowAdd] = useState(false);
             const [newUser, setNewUser] = useState({ name: '', email: '', uid: '', role: 'employee' });
-            const [editingUser, setEditingUser] = useState(null);
-
-            const toggleRole = (u) => {
-                if(!confirm(`هل تريد تغيير صلاحية ${safeStr(u.name)}؟`)) return;
-                const newRole = u.role === 'admin' ? 'employee' : 'admin';
-                update(ref(db, `users/${u.id}`), { role: newRole });
-            };
+            const [editingUser, setEditingUser] = useState(null); // Combined Edit State
 
             const handleManualAdd = (e) => {
                 e.preventDefault();
-                if(!newUser.uid) return alert('الرجاء إدخال User UID من لوحة تحكم فايربيس');
+                if(!newUser.uid) return alert('الرجاء إدخال User UID');
                 set(ref(db, `users/${newUser.uid}`), newUser).then(() => {
                     setShowAdd(false);
                     setNewUser({ name: '', email: '', uid: '', role: 'employee' });
@@ -550,10 +477,16 @@
 
             const handleUpdateUser = () => {
                 if(!editingUser.name) return alert('الاسم مطلوب');
-                update(ref(db, `users/${editingUser.id}`), { name: editingUser.name }).then(() => {
+                
+                // *** PROTECTION LOGIC ***
+                if (editingUser.email === SUPER_ADMIN_EMAIL) {
+                    return alert("لا يمكن تعديل بيانات المسؤول الرئيسي.");
+                }
+
+                update(ref(db, `users/${editingUser.id}`), { name: editingUser.name, role: editingUser.role }).then(() => {
                     setEditingUser(null);
                 });
-            }
+            };
 
             const safeUsers = users.filter(u => u && typeof u === 'object' && u.id);
 
@@ -569,19 +502,13 @@
                     </div>
                     
                     {showAdd && (
-                        <div className="bg-white p-4 rounded-xl shadow border border-brand-900/10 mb-4 animate-in fade-in slide-in-from-top-4">
-                            <div className="flex justify-between mb-4 font-bold text-brand-900">
-                                <span>إضافة موظف يدوياً (عن طريق UID)</span>
-                                <button onClick={()=>setShowAdd(false)}><Icon name="x" size={16}/></button>
-                            </div>
+                        <div className="bg-white p-4 rounded-xl shadow border border-brand-900/10 mb-4">
+                            <div className="flex justify-between mb-4 font-bold text-brand-900"><span>إضافة موظف</span><button onClick={()=>setShowAdd(false)}><Icon name="x" size={16}/></button></div>
                             <form onSubmit={handleManualAdd} className="grid md:grid-cols-5 gap-3">
                                 <input required className="p-2 border rounded bg-gray-50" placeholder="الاسم" value={newUser.name} onChange={e=>setNewUser({...newUser, name: e.target.value})} />
                                 <input required className="p-2 border rounded bg-gray-50 date-en text-right" placeholder="البريد الإلكتروني" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} />
-                                <input required className="p-2 border rounded bg-gray-50 date-en text-right" placeholder="User UID (من فايربيس)" value={newUser.uid} onChange={e=>setNewUser({...newUser, uid: e.target.value})} />
-                                <select className="p-2 border rounded bg-gray-50 outline-none" value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})}>
-                                    <option value="employee">موظف مبيعات</option>
-                                    <option value="admin">مسؤول</option>
-                                </select>
+                                <input required className="p-2 border rounded bg-gray-50 date-en text-right" placeholder="UID" value={newUser.uid} onChange={e=>setNewUser({...newUser, uid: e.target.value})} />
+                                <select className="p-2 border rounded bg-gray-50" value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})}><option value="employee">موظف مبيعات</option><option value="admin">مسؤول</option></select>
                                 <button className="bg-brand-900 text-white font-bold rounded p-2">حفظ</button>
                             </form>
                         </div>
@@ -601,29 +528,45 @@
                                     <span className={`px-3 py-1 rounded text-xs font-bold ${u.role==='admin' ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
                                         {u.role === 'admin' ? 'مسؤول' : 'موظف مبيعات'}
                                     </span>
-                                    {currentUser.role === 'admin' && (
-                                        <>
-                                            <button onClick={()=>setEditingUser(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تعديل الاسم">
-                                                <Icon name="pencil" size={16} />
-                                            </button>
-                                            {currentUser.id !== u.id && (
-                                                <button onClick={()=>toggleRole(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تغيير الصلاحية">
-                                                    <Icon name="arrow-up-down" size={16} />
-                                                </button>
-                                            )}
-                                        </>
+                                    
+                                    {/* SHOW EDIT BUTTON FOR ADMIN, BUT HIDE IT FOR SUPER ADMIN ACCOUNT */}
+                                    {currentUser.role === 'admin' && u.email !== SUPER_ADMIN_EMAIL && (
+                                        <button onClick={()=>setEditingUser(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تعديل الموظف">
+                                            <Icon name="pencil" size={16} />
+                                        </button>
+                                    )}
+                                    {/* Show Lock Icon for Super Admin */}
+                                    {u.email === SUPER_ADMIN_EMAIL && (
+                                        <span className="p-2 text-gray-300" title="محمي"><Icon name="lock" size={16} /></span>
                                     )}
                                 </div>
                             </div>
                         ))}
                     </div>
 
+                    {/* UNIFIED EDIT MODAL */}
                     {editingUser && (
                         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                            <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
-                                <div className="flex justify-between mb-4"><h3 className="font-bold">تعديل الاسم</h3><button onClick={()=>setEditingUser(null)}><Icon name="x"/></button></div>
-                                <input className="w-full bg-gray-50 border rounded-lg p-3 mb-4" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name:e.target.value})} />
-                                <button onClick={handleUpdateUser} className="w-full bg-brand-900 text-white py-2 rounded-lg font-bold">حفظ</button>
+                            <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+                                <div className="flex justify-between mb-6">
+                                    <h3 className="font-bold text-lg text-brand-900">تعديل بيانات الموظف</h3>
+                                    <button onClick={()=>setEditingUser(null)}><Icon name="x"/></button>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 block mb-1">الاسم</label>
+                                        <input className="w-full bg-gray-50 border rounded-lg p-3" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name:e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 block mb-1">الصلاحية</label>
+                                        <select className="w-full bg-gray-50 border rounded-lg p-3" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role:e.target.value})} disabled={currentUser.id === editingUser.id}>
+                                            <option value="employee">موظف مبيعات</option>
+                                            <option value="admin">مسؤول</option>
+                                        </select>
+                                        {currentUser.id === editingUser.id && <p className="text-xs text-red-400 mt-1">لا يمكنك تغيير صلاحيتك بنفسك</p>}
+                                    </div>
+                                    <button onClick={handleUpdateUser} className="w-full bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 transition">حفظ التغييرات</button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -649,26 +592,12 @@
                         const userRef = ref(db, `users/${u.uid}`);
                         try {
                             const snapshot = await get(userRef);
-                            if (!snapshot.exists()) {
-                                await set(userRef, { name: 'مستخدم جديد', email: u.email, role: 'employee', createdAt: new Date().toISOString() });
-                            }
+                            if (!snapshot.exists()) await set(userRef, { name: 'مستخدم جديد', email: u.email, role: 'employee', createdAt: new Date().toISOString() });
                         } catch (err) { console.error(err); }
-
-                        onValue(userRef, (s) => {
-                            const d = s.val();
-                            setUser(d ? { id: u.uid, email: u.email, ...d } : { id: u.uid, email: u.email, name: 'User', role: 'employee' });
-                            setLoading(false);
-                        });
-                        onValue(ref(db, 'clients'), s => {
-                            try { setClients(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})).reverse() : []) } catch(e) { setClients([]) }
-                        });
-                        onValue(ref(db, 'users'), s => {
-                            try { setUsers(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []) } catch(e) { setUsers([]) }
-                        });
-                    } else {
-                        setUser(null);
-                        setLoading(false);
-                    }
+                        onValue(userRef, (s) => { const d = s.val(); setUser(d ? { id: u.uid, email: u.email, ...d } : { id: u.uid, email: u.email, name: 'User', role: 'employee' }); setLoading(false); });
+                        onValue(ref(db, 'clients'), s => { try { setClients(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})).reverse() : []) } catch(e) { setClients([]) } });
+                        onValue(ref(db, 'users'), s => { try { setUsers(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []) } catch(e) { setUsers([]) } });
+                    } else { setUser(null); setLoading(false); }
                 });
             }, []);
 
@@ -686,10 +615,7 @@
                 <div className="min-h-screen flex">
                     <aside className={`fixed md:sticky top-0 h-screen w-72 bg-white border-l z-50 transition-transform ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
                         <div className="p-6 h-full flex flex-col">
-                            <div className="flex items-center gap-2 mb-8 text-brand-900 font-black text-xl">
-                                <Logo size={40} />
-                                بيوتكم
-                            </div>
+                            <div className="flex items-center gap-2 mb-8 text-brand-900 font-black text-xl"><Logo size={40} /> بيوتكم</div>
                             <nav className="flex-1 space-y-1">
                                 <button onClick={()=>{setPage('dashboard');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='dashboard'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="layout-dashboard"/> لوحة التحكم</button>
                                 <button onClick={()=>{setPage('clients');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='clients'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="users"/> العملاء والطلبات</button>
@@ -715,10 +641,7 @@
                     
                     <main className="flex-1 flex flex-col h-screen overflow-hidden">
                         <header className="md:hidden bg-white border-b p-4 flex justify-between items-center">
-                            <div className="flex items-center gap-2 font-bold text-brand-900">
-                                <Logo size={32} />
-                                بيوتكم
-                            </div>
+                            <div className="flex items-center gap-2 font-bold text-brand-900"><Logo size={32} /> بيوتكم</div>
                             <button onClick={()=>setSidebarOpen(true)}><Icon name="menu"/></button>
                         </header>
                         <div className="flex-1 overflow-y-auto p-6">
@@ -742,11 +665,7 @@
         const ClientModal = ({ isOpen, onClose, client, onSave, users, currentUser }) => {
             const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر' });
             useEffect(() => { if(client) setD(client); else setD({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر' }); }, [client]);
-
-            const toggleProject = (p) => {
-                const curr = safeArr(d.projects);
-                setD({ ...d, projects: curr.includes(p) ? curr.filter(x=>x!==p) : [...curr, p] });
-            };
+            const toggleProject = (p) => { const curr = safeArr(d.projects); setD({ ...d, projects: curr.includes(p) ? curr.filter(x=>x!==p) : [...curr, p] }); };
 
             return (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -757,25 +676,14 @@
                             <input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} />
                             <div>
                                 <label className="text-xs font-bold block mb-2">المشاريع</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {PROJECT_LIST.map(p => (
-                                        <button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>
-                                    ))}
-                                </div>
+                                <div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div>
                             </div>
-                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>
-                                {CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
-                            </select>
-                            {client && (
-                                <>
-                                    <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} />
-                                    <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
-                                </>
-                            )}
-                            <select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role!=='admin'}>
-                                <option value="">بدون إسناد</option>
-                                {users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
-                            </select>
+                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                            {client && (<>
+                                <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} />
+                                <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
+                            </>)}
+                            <select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role!=='admin'}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>
                             <button onClick={()=>onSave(d)} className="w-full bg-brand-900 text-white py-3 rounded-lg font-bold">حفظ</button>
                         </div>
                     </div>
