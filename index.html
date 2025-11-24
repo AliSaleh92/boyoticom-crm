@@ -137,16 +137,14 @@
             );
         };
 
-        // --- 6. ATTENDANCE SYSTEM (NEW: SIDEBAR + ZONES + REPORTS) ---
-        
+        // --- 6. ATTENDANCE SYSTEM ---
         const MapZoneEditor = ({ center, radius, onChange }) => { const mapRef = useRef(null); const mapObj = useRef(null); const markerObj = useRef(null); const circleObj = useRef(null); useEffect(() => { if (!mapRef.current) return; if (!mapObj.current) { mapObj.current = L.map(mapRef.current).setView([center.lat, center.lng], 15); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapObj.current); const icon = L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png', shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }); markerObj.current = L.marker([center.lat, center.lng], { icon, draggable: true }).addTo(mapObj.current); circleObj.current = L.circle([center.lat, center.lng], { color: '#CE9B52', fillColor: '#CE9B52', fillOpacity: 0.2, radius: radius }).addTo(mapObj.current); const update = (lat, lng) => { markerObj.current.setLatLng([lat, lng]); circleObj.current.setLatLng([lat, lng]); onChange({ lat, lng }, radius); }; mapObj.current.on('click', (e) => update(e.latlng.lat, e.latlng.lng)); markerObj.current.on('dragend', (e) => { const l = e.target.getLatLng(); update(l.lat, l.lng); }); } }, []); useEffect(() => { if(circleObj.current) circleObj.current.setRadius(radius); }, [radius]); return <div ref={mapRef} className="w-full h-64 rounded-xl z-0" />; };
         const calculateDistance = (lat1, lon1, lat2, lon2) => { const R = 6371e3; const φ1 = lat1 * Math.PI/180; const φ2 = lat2 * Math.PI/180; const Δφ = (lat2-lat1) * Math.PI/180; const Δλ = (lon2-lon1) * Math.PI/180; const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2); return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); };
 
-        // -- Zone Modal with User Selection AND Edit --
-        const ZoneModal = ({ isOpen, onClose, users, onSave, zoneToEdit }) => {
+        // -- Zone Modal with User Selection (FIXED: Prevent Duplicate Assignment) --
+        const ZoneModal = ({ isOpen, onClose, users, zones, onSave, zoneToEdit }) => {
             const [zone, setZone] = useState({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200, assignedUsers: [] });
             
-            // Load data when modal opens
             useEffect(() => {
                 if (isOpen) {
                     if (zoneToEdit) {
@@ -161,6 +159,15 @@
 
             const toggleUser = (uid) => {
                 const current = safeArr(zone.assignedUsers);
+                
+                // Check if user is already in another zone (excluding current zone if editing)
+                const otherZones = zones.filter(z => z.id !== zone.id);
+                const isAssignedElsewhere = otherZones.some(z => safeArr(z.assignedUsers).includes(uid));
+
+                if (isAssignedElsewhere && !current.includes(uid)) {
+                    return alert("هذا الموظف مسجل في نطاق آخر بالفعل. لا يمكن تسجيله في نطاقين.");
+                }
+
                 setZone({...zone, assignedUsers: current.includes(uid) ? current.filter(id=>id!==uid) : [...current, uid] });
             };
 
@@ -186,12 +193,19 @@
                         <div className="mb-4 border-t pt-4">
                             <label className="font-bold block mb-2">الموظفين المصرح لهم في هذا النطاق:</label>
                             <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-                                {users.map(u => (
-                                    <label key={u.id} className="flex items-center gap-2 bg-white p-2 rounded border cursor-pointer hover:bg-gray-100">
-                                        <input type="checkbox" checked={safeArr(zone.assignedUsers).includes(u.id)} onChange={()=>toggleUser(u.id)} className="accent-accent-600"/>
-                                        <span className="text-sm">{u.name}</span>
-                                    </label>
-                                ))}
+                                {users.filter(u => u.id !== 'admin').map(u => {
+                                    // Check assignment status for UI feedback
+                                    const isAssignedHere = safeArr(zone.assignedUsers).includes(u.id);
+                                    const otherZones = zones.filter(z => z.id !== zone.id);
+                                    const isAssignedElsewhere = otherZones.some(z => safeArr(z.assignedUsers).includes(u.id));
+
+                                    return (
+                                        <label key={u.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${isAssignedElsewhere ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white hover:bg-gray-100'}`}>
+                                            <input type="checkbox" checked={isAssignedHere} onChange={()=>toggleUser(u.id)} disabled={isAssignedElsewhere && !isAssignedHere} className="accent-accent-600"/>
+                                            <span className="text-sm">{u.name} {isAssignedElsewhere && '(مسجل بنطاق آخر)'}</span>
+                                        </label>
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -225,7 +239,7 @@
             // Processing for Deductions
             const processedRows = Object.values(reportData).map(row => {
                 let lateText = '-', earlyText = '-', hoursText = '-', deduction = '-';
-                const zone = zones.find(z => safeArr(z.assignedUsers).includes(row.uid)) || zones[0];
+                const zone = zones.find(z => safeArr(z.assignedUsers).includes(row.uid));
 
                 if (row.checkIn !== '-' && zone) {
                     const shiftStart = new Date(`${row.date}T${zone.startTime}`);
@@ -440,7 +454,7 @@
                         )}
                     </main>
 
-                    <ZoneModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} users={usersList} onSave={handleSaveZone} zoneToEdit={editingZone} />
+                    <ZoneModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} users={usersList} zones={zones} onSave={handleSaveZone} zoneToEdit={editingZone} />
                 </div>
             );
         };
