@@ -88,15 +88,7 @@
              return <img src="/logo.png" className="object-contain" style={{ width: size, height: size }} onError={()=>setErr(true)} />;
         };
         const exportToExcel = (data, fileName) => { const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); XLSX.writeFile(wb, `${fileName}.xlsx`); };
-
-        // Helper to calculate time difference in hours and minutes
-        const calculateDuration = (start, end) => {
-            if (!start || !end) return '-';
-            const diffMs = new Date(end) - new Date(start);
-            const diffHrs = Math.floor((diffMs % 86400000) / 3600000); 
-            const diffMins = Math.round(((diffMs % 86400000) % 3600000) / 60000);
-            return `${diffHrs}س ${diffMins}د`;
-        };
+        const calculateDuration = (start, end) => { if (!start || !end) return '-'; const diffMs = new Date(end) - new Date(start); const diffHrs = Math.floor((diffMs % 86400000) / 3600000); const diffMins = Math.round(((diffMs % 86400000) % 3600000) / 60000); return `${diffHrs}س ${diffMins}د`; };
 
         // --- 1. LOGIN ---
         const Login = () => {
@@ -150,9 +142,21 @@
         const MapZoneEditor = ({ center, radius, onChange }) => { const mapRef = useRef(null); const mapObj = useRef(null); const markerObj = useRef(null); const circleObj = useRef(null); useEffect(() => { if (!mapRef.current) return; if (!mapObj.current) { mapObj.current = L.map(mapRef.current).setView([center.lat, center.lng], 15); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapObj.current); const icon = L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png', shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }); markerObj.current = L.marker([center.lat, center.lng], { icon, draggable: true }).addTo(mapObj.current); circleObj.current = L.circle([center.lat, center.lng], { color: '#CE9B52', fillColor: '#CE9B52', fillOpacity: 0.2, radius: radius }).addTo(mapObj.current); const update = (lat, lng) => { markerObj.current.setLatLng([lat, lng]); circleObj.current.setLatLng([lat, lng]); onChange({ lat, lng }, radius); }; mapObj.current.on('click', (e) => update(e.latlng.lat, e.latlng.lng)); markerObj.current.on('dragend', (e) => { const l = e.target.getLatLng(); update(l.lat, l.lng); }); } }, []); useEffect(() => { if(circleObj.current) circleObj.current.setRadius(radius); }, [radius]); return <div ref={mapRef} className="w-full h-64 rounded-xl z-0" />; };
         const calculateDistance = (lat1, lon1, lat2, lon2) => { const R = 6371e3; const φ1 = lat1 * Math.PI/180; const φ2 = lat2 * Math.PI/180; const Δφ = (lat2-lat1) * Math.PI/180; const Δλ = (lon2-lon1) * Math.PI/180; const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2); return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); };
 
-        // -- Zone Modal with User Selection --
-        const ZoneModal = ({ isOpen, onClose, users, onSave }) => {
+        // -- Zone Modal with User Selection AND Edit --
+        const ZoneModal = ({ isOpen, onClose, users, onSave, zoneToEdit }) => {
             const [zone, setZone] = useState({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200, assignedUsers: [] });
+            
+            // Load data when modal opens
+            useEffect(() => {
+                if (isOpen) {
+                    if (zoneToEdit) {
+                        setZone(zoneToEdit);
+                    } else {
+                        setZone({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200, assignedUsers: [] });
+                    }
+                }
+            }, [isOpen, zoneToEdit]);
+
             if(!isOpen) return null;
 
             const toggleUser = (uid) => {
@@ -163,7 +167,7 @@
             return (
                 <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4">
-                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">إضافة نطاق (موقع عمل)</h3><button onClick={onClose}><Icon name="x"/></button></div>
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">{zoneToEdit ? 'تعديل النطاق' : 'إضافة نطاق جديد'}</h3><button onClick={onClose}><Icon name="x"/></button></div>
                         
                         <div className="grid md:grid-cols-2 gap-4 mb-4">
                             <input className="border p-2 rounded-lg" placeholder="اسم النطاق (مثلاً: الفرع الرئيسي)" value={zone.name} onChange={e=>setZone({...zone, name:e.target.value})}/>
@@ -197,13 +201,18 @@
             );
         };
 
-        // -- Advanced Reports Component --
+        // -- Advanced Reports Component (UPDATED WITH FILTER) --
         const AttendanceReports = ({ logs, users, zones }) => {
-            const [dateFilter, setDateFilter] = useState('');
+            const [startDate, setStartDate] = useState('');
+            const [endDate, setEndDate] = useState('');
             
-            // Generate Report Logic
-            const reportData = logs.slice().reverse().filter(l => !dateFilter || l.timestamp.startsWith(dateFilter)).reduce((acc, log) => {
-                // Simple grouping by User + Date (This is a simplified logic for display)
+            // Generate Report Logic with Filter
+            const reportData = logs.slice().reverse().filter(l => {
+                const logDate = l.timestamp.slice(0, 10);
+                const startOk = !startDate || logDate >= startDate;
+                const endOk = !endDate || logDate <= endDate;
+                return startOk && endOk;
+            }).reduce((acc, log) => {
                 const date = log.timestamp.slice(0, 10);
                 const key = `${log.uid}-${date}`;
                 if (!acc[key]) acc[key] = { uid: log.uid, date: date, user: users.find(u=>u.id===log.uid)?.name, checkIn: '-', checkOut: '-', late: 0, early: 0, hours: 0 };
@@ -216,16 +225,14 @@
             // Processing for Deductions
             const processedRows = Object.values(reportData).map(row => {
                 let lateText = '-', earlyText = '-', hoursText = '-', deduction = '-';
-                const zone = zones.find(z => safeArr(z.assignedUsers).includes(row.uid)) || zones[0]; // Fallback to first zone if not found
+                const zone = zones.find(z => safeArr(z.assignedUsers).includes(row.uid)) || zones[0];
 
                 if (row.checkIn !== '-' && zone) {
-                    // Late Calculation
                     const shiftStart = new Date(`${row.date}T${zone.startTime}`);
                     const actualIn = new Date(row.checkIn);
-                    const diffLate = (actualIn - shiftStart) / 60000; // mins
+                    const diffLate = (actualIn - shiftStart) / 60000; 
                     if (diffLate > 15) {
                         lateText = `${Math.round(diffLate)} دقيقة`;
-                        // Simple Saudi Law Logic (Example)
                         if (diffLate > 60) deduction = 'خصم يوم';
                         else if (diffLate > 30) deduction = 'خصم نصف يوم';
                         else deduction = 'تنبيه (تأخير ربع ساعة)';
@@ -233,7 +240,6 @@
                 }
 
                 if (row.checkOut !== '-' && zone) {
-                    // Early Leave
                     const shiftEnd = new Date(`${row.date}T${zone.endTime}`);
                     const actualOut = new Date(row.checkOut);
                     const diffEarly = (shiftEnd - actualOut) / 60000;
@@ -249,10 +255,18 @@
 
             return (
                 <div className="space-y-4">
-                    <div className="bg-white p-4 rounded-xl shadow-sm border flex gap-4 items-center">
-                        <span className="font-bold text-gray-600">تصفية بالتاريخ:</span>
-                        <input type="date" className="border rounded-lg p-2" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} />
-                        <button onClick={()=>exportToExcel(processedRows, 'Attendance')} className="mr-auto bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Icon name="file-spreadsheet" size={18}/> تصدير</button>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 items-center">
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-600 text-sm">من:</span>
+                            <input type="date" className="border rounded-lg p-2 text-sm" value={startDate} onChange={e=>setStartDate(e.target.value)} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-600 text-sm">إلى:</span>
+                            <input type="date" className="border rounded-lg p-2 text-sm" value={endDate} onChange={e=>setEndDate(e.target.value)} />
+                        </div>
+                        {(startDate || endDate) && <button onClick={()=>{setStartDate('');setEndDate('')}} className="text-xs text-red-500 font-bold">مسح</button>}
+                        
+                        <button onClick={()=>exportToExcel(processedRows, 'Attendance')} className="mr-auto bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm"><Icon name="file-spreadsheet" size={16}/> تصدير</button>
                     </div>
                     
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -292,25 +306,21 @@
 
             const [page, setPage] = useState(canSeeReports ? 'live' : 'my_attendance');
             const [modalOpen, setModalOpen] = useState(false);
+            const [editingZone, setEditingZone] = useState(null); // New State for editing
             
             // My Attendance Logic
-            const [myStatus, setMyStatus] = useState('loading'); // loading, inside, outside
+            const [myStatus, setMyStatus] = useState('loading'); 
             const [currentZone, setCurrentZone] = useState(null);
             const [todayLog, setTodayLog] = useState({ in: null, out: null });
             
-            // Find My Zone
             useEffect(() => {
                 const foundZone = zones.find(z => safeArr(z.assignedUsers).includes(user.id));
                 setCurrentZone(foundZone);
                 
-                // Check Today's Log
                 const today = new Date().toDateString();
                 const myLogsToday = logs.filter(l => l.uid === user.id && new Date(l.timestamp).toDateString() === today);
-                const lastIn = myLogsToday.find(l => l.type === 'IN');
-                const lastOut = myLogsToday.find(l => l.type === 'OUT');
-                setTodayLog({ in: lastIn, out: lastOut });
+                setTodayLog({ in: myLogsToday.find(l => l.type === 'IN'), out: myLogsToday.find(l => l.type === 'OUT') });
                 
-                // Geolocation Check
                 if(foundZone) {
                     navigator.geolocation.watchPosition(pos => {
                         const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, foundZone.lat, foundZone.lng);
@@ -327,7 +337,22 @@
                 alert(`تم تسجيل ${type==='IN'?'الدخول':'الخروج'} بنجاح`);
             };
 
-            const handleSaveZone = (z) => { push(ref(db, 'zones'), z); setModalOpen(false); };
+            // Updated to handle Edit
+            const handleSaveZone = (z) => { 
+                if(z.id) {
+                    // Update
+                    const { id, ...data } = z; // Separate ID from data
+                    update(ref(db, `zones/${id}`), data);
+                } else {
+                    // Create
+                    push(ref(db, 'zones'), z); 
+                }
+                setModalOpen(false); 
+                setEditingZone(null);
+            };
+
+            const openAddModal = () => { setEditingZone(null); setModalOpen(true); };
+            const openEditModal = (zone) => { setEditingZone(zone); setModalOpen(true); };
 
             return (
                 <div className="flex min-h-screen bg-slate-50">
@@ -376,7 +401,7 @@
 
                         {page === 'zones' && (
                             <div>
-                                <button onClick={()=>setModalOpen(true)} className="bg-accent-600 text-white px-6 py-3 rounded-xl font-bold mb-6 shadow-lg">+ إضافة نطاق جديد</button>
+                                <button onClick={openAddModal} className="bg-accent-600 text-white px-6 py-3 rounded-xl font-bold mb-6 shadow-lg">+ إضافة نطاق جديد</button>
                                 <div className="grid gap-4">
                                     {zones.map(z => (
                                         <div key={z.id} className="bg-white p-5 rounded-2xl shadow-sm border flex justify-between items-center">
@@ -384,8 +409,9 @@
                                                 <h4 className="font-bold text-lg text-brand-900">{z.name}</h4>
                                                 <div className="text-sm text-gray-500 date-en">{z.startTime} - {z.endTime}</div>
                                             </div>
-                                            <div className="text-left">
-                                                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-bold mb-2 inline-block">{safeArr(z.assignedUsers).length} موظف</span>
+                                            <div className="flex items-center gap-3">
+                                                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-bold">{safeArr(z.assignedUsers).length} موظف</span>
+                                                <button onClick={()=>openEditModal(z)} className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200 text-brand-900"><Icon name="pencil" size={16}/></button>
                                             </div>
                                         </div>
                                     ))}
@@ -414,7 +440,7 @@
                         )}
                     </main>
 
-                    <ZoneModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} users={usersList} onSave={handleSaveZone} />
+                    <ZoneModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} users={usersList} onSave={handleSaveZone} zoneToEdit={editingZone} />
                 </div>
             );
         };
