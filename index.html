@@ -113,7 +113,7 @@
         };
 
         // --- REACT COMPONENTS ---
-        const { useState, useEffect, useMemo, Component } = window.React;
+        const { useState, useEffect, useMemo, useRef, Component } = window.React;
         const Recharts = window.Recharts || {};
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } = Recharts;
 
@@ -168,12 +168,11 @@
         
         const SUPER_ADMIN_EMAIL = "asaleh@boyoticom.com";
 
-        // --- HEADER WITH NOTIFICATIONS (NEW) ---
+        // --- HEADER WITH NOTIFICATIONS ---
         const Header = ({ title, clients, onToggleSidebar }) => {
             const [showNotifs, setShowNotifs] = useState(false);
             const today = new Date().toISOString().slice(0,10);
             
-            // Logic for notifications
             const reminders = clients.filter(c => c.nextFollowUp === today);
             const newClients = clients.filter(c => c.dateAdded && c.dateAdded.startsWith(today));
             
@@ -185,7 +184,6 @@
             return (
                 <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-30">
                     <div className="flex items-center gap-2">
-                        {/* Mobile Menu Button is here for layout balance */}
                         <div className="md:hidden flex items-center gap-2 font-bold text-brand-900">
                             <Logo size={32} /> بيوتكم
                         </div>
@@ -195,14 +193,11 @@
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Notification Bell */}
                         <div className="relative">
                             <button onClick={() => setShowNotifs(!showNotifs)} className="p-2 rounded-full hover:bg-gray-100 relative text-gray-600 transition">
                                 <Icon name="bell" size={22} />
                                 {allNotifs.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
                             </button>
-                            
-                            {/* Dropdown */}
                             {showNotifs && (
                                 <>
                                     <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowNotifs(false)}></div>
@@ -235,7 +230,6 @@
                                 </>
                             )}
                         </div>
-
                         <button onClick={onToggleSidebar} className="md:hidden text-gray-600 p-1"><Icon name="menu" size={24}/></button>
                     </div>
                 </header>
@@ -375,8 +369,19 @@
 
         // --- REPORTS COMPONENT ---
         const Reports = ({ clients, users }) => {
+            const [startDate, setStartDate] = useState('');
+            const [endDate, setEndDate] = useState('');
+
+            // Filter clients based on date range
+            const filteredClients = clients.filter(c => {
+                const clientDate = c.dateAdded ? c.dateAdded.slice(0, 10) : '';
+                const startMatch = startDate ? clientDate >= startDate : true;
+                const endMatch = endDate ? clientDate <= endDate : true;
+                return startMatch && endMatch;
+            });
+
             const reportData = users.map(u => {
-                const userClients = clients.filter(c => c.addedBy === u.email || c.assignedTo === u.name);
+                const userClients = filteredClients.filter(c => c.addedBy === u.email || c.assignedTo === u.name);
                 return {
                     id: u.id,
                     name: u.name,
@@ -390,6 +395,23 @@
 
             return (
                 <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-brand-900">تقارير أداء الموظفين</h2>
+                    
+                    {/* Reports Date Filter */}
+                    <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-gray-500">من:</span>
+                            <input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={startDate} onChange={e=>setStartDate(e.target.value)} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-gray-500">إلى:</span>
+                            <input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={endDate} onChange={e=>setEndDate(e.target.value)} />
+                        </div>
+                        {(startDate || endDate) && (
+                            <button onClick={()=>{setStartDate('');setEndDate('')}} className="text-xs text-red-500 hover:underline font-bold">إلغاء الفلتر</button>
+                        )}
+                    </div>
+
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                         <table className="w-full text-right">
                             <thead className="bg-gray-50 text-sm font-bold text-brand-900">
@@ -426,6 +448,7 @@
             const [search, setSearch] = useState('');
             const [filterStatus, setFilterStatus] = useState('');
             const [filterCreator, setFilterCreator] = useState('');
+            const [filterAssignee, setFilterAssignee] = useState(''); // New Assignee Filter
             const [startDate, setStartDate] = useState('');
             const [endDate, setEndDate] = useState('');
             const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -433,6 +456,7 @@
             const [deleteId, setDeleteId] = useState(null);
             
             const creators = useMemo(() => [...new Set(clients.map(c => c.addedBy).filter(Boolean))], [clients]);
+            const assignees = useMemo(() => [...new Set(clients.map(c => c.assignedTo).filter(Boolean))], [clients]); // Unique Assignees
 
             const filtered = clients.filter(c => {
                 if(currentUser.role !== 'admin' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false;
@@ -440,12 +464,13 @@
                 const matchesSearch = safeStr(c.name).toLowerCase().includes(s) || safeStr(c.phone).includes(s);
                 const matchesStatus = filterStatus ? c.status === filterStatus : true;
                 const matchesCreator = filterCreator ? c.addedBy === filterCreator : true;
+                const matchesAssignee = filterAssignee ? c.assignedTo === filterAssignee : true; // Assignee Logic
                 const clientDate = c.dateAdded ? c.dateAdded.slice(0, 10) : '';
                 const matchesDate = (startDate ? clientDate >= startDate : true) && (endDate ? clientDate <= endDate : true);
-                return matchesSearch && matchesStatus && matchesCreator && matchesDate;
+                return matchesSearch && matchesStatus && matchesCreator && matchesAssignee && matchesDate;
             });
 
-            useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCreator, startDate, endDate, itemsPerPage]);
+            useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCreator, filterAssignee, startDate, endDate, itemsPerPage]);
 
             const totalPages = itemsPerPage === 'All' ? 1 : Math.ceil(filtered.length / itemsPerPage);
             const displayedClients = itemsPerPage === 'All' ? filtered : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -457,6 +482,7 @@
                     'المشاريع': safeArr(c.projects).join(', '),
                     'الحالة': STATUS_LIST.find(s=>s.key===c.status)?.label || c.status,
                     'المنشئ': c.addedBy || 'غير مسند',
+                    'الموظف': c.assignedTo || 'غير مسند', // Added to export
                     'المصدر': c.source || '-',
                     'رقم الوحدة': c.unitNumber || '-',
                     'تاريخ الإضافة': c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'
@@ -495,7 +521,6 @@
             return (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center flex-wrap gap-4">
-                        {/* Title removed from here as it is now in Header */}
                         <div className="flex gap-2 flex-wrap mr-auto">
                              {currentUser.role === 'admin' && (
                                 <>
@@ -517,7 +542,10 @@
                             <span className="text-xs text-gray-500">إلى:</span><input type="date" className="bg-transparent py-2 outline-none text-sm date-en" value={endDate} onChange={e=>setEndDate(e.target.value)} />
                         </div>
                         <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="">كل الحالات</option>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
-                        {currentUser.role === 'admin' && (<select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}><option value="">كل المنشئين</option>{creators.map(c=><option key={c} value={c}>{c}</option>)}</select>)}
+                        <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)}><option value="">كل الموظفين</option>{assignees.map(a=><option key={a} value={a}>{a}</option>)}</select>
+                        {currentUser.role === 'admin' && (
+                            <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}><option value="">كل المنشئين</option>{creators.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                        )}
                         <div className="flex items-center gap-1 bg-gray-50 rounded-lg px-2 border border-gray-100"><span className="text-xs text-gray-500">عرض:</span><select className="bg-transparent py-2 outline-none text-sm font-bold" value={itemsPerPage} onChange={e => setItemsPerPage(e.target.value === 'All' ? 'All' : Number(e.target.value))}><option value={10}>10</option><option value={50}>50</option><option value={100}>100</option><option value="All">الكل</option></select></div>
                     </div>
 
@@ -530,7 +558,8 @@
                                         <th className="p-4 min-w-[120px]">المشاريع</th>
                                         <th className="p-4 min-w-[100px]">تاريخ الإضافة</th>
                                         <th className="p-4 min-w-[100px]">الحالة</th>
-                                        <th className="p-4 min-w-[150px]">اسم المنشئ</th>
+                                        <th className="p-4 min-w-[120px]">الموظف</th> {/* New Column */}
+                                        <th className="p-4 min-w-[150px]">المنشئ</th>
                                         <th className="p-4 min-w-[100px]">متابعة</th>
                                         <th className="p-4 min-w-[100px]"></th>
                                     </tr>
@@ -549,14 +578,15 @@
                                             <td className="p-4 text-sm text-gray-600">{safeArr(c.projects).map((p,i)=><div key={i}>• {safeStr(p)}</div>)}</td>
                                             <td className="p-4 text-xs text-gray-500 date-en">{c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'}</td>
                                             <td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td>
-                                            <td className="p-4 text-sm text-gray-600 date-en">{safeStr(c.addedBy)}</td>
+                                            <td className="p-4 text-sm text-gray-600">{safeStr(c.assignedTo)}</td> {/* Assignee */}
+                                            <td className="p-4 text-sm text-gray-600 date-en">{safeStr(c.addedBy)}</td> {/* Creator */}
                                             <td className="p-4 text-xs text-amber-600 font-bold date-en">{c.nextFollowUp || '-'}</td>
                                             <td className="p-4 flex items-center gap-2">
                                                 <button onClick={()=>onEdit(c)} className="text-brand-900 hover:bg-gray-100 p-2 rounded"><Icon name="edit" size={16}/></button>
                                                 {currentUser.role === 'admin' && (<button onClick={()=>setDeleteId(c.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Icon name="trash-2" size={16}/></button>)}
                                             </td>
                                         </tr>
-                                    )) : (<tr><td colSpan="7" className="p-8 text-center text-gray-400">لا توجد نتائج مطابقة</td></tr>)}
+                                    )) : (<tr><td colSpan="8" className="p-8 text-center text-gray-400">لا توجد نتائج مطابقة</td></tr>)}
                                 </tbody>
                             </table>
                         </div>
@@ -619,9 +649,9 @@
             return (
                 <div className="space-y-6">
                     <div className="flex justify-between items-center">
-                        {/* Title removed from here as it is now in Header */}
+                        <h2 className="text-2xl font-bold text-brand-900">الموظفين</h2>
                         {currentUser.role === 'admin' && (
-                            <button onClick={()=>setShowAdd(true)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 mr-auto"><Icon name="user-plus" size={16}/> ربط حساب يدوياً</button>
+                            <button onClick={()=>setShowAdd(true)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Icon name="user-plus" size={16}/> ربط حساب يدوياً</button>
                         )}
                     </div>
                     
@@ -675,11 +705,17 @@
             const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' });
             const [newNote, setNewNote] = useState('');
             const [notes, setNotes] = useState([]);
+            const notesEndRef = useRef(null);
 
             useEffect(() => { 
                 if(client) { setD(client); setNotes(client.notes ? Object.values(client.notes) : []); } 
                 else { setD({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' }); setNotes([]); }
             }, [client]);
+
+            // Auto scroll to bottom of notes
+            useEffect(() => {
+                notesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, [notes, isOpen]);
 
             const toggleProject = (p) => { const curr = safeArr(d.projects); setD({ ...d, projects: curr.includes(p) ? curr.filter(x=>x!==p) : [...curr, p] }); };
 
@@ -714,6 +750,7 @@
                             <div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[400px] space-y-3">
                                 {notes.length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا توجد ملاحظات بعد</div>}
                                 {notes.map((n, i) => (<div key={i} className="bg-white p-3 rounded-lg border shadow-sm text-sm"><p className="text-gray-800 mb-2">{n.text}</p><div className="flex justify-between text-xs text-gray-400"><span>{n.author}</span><span className="date-en">{new Date(n.date).toLocaleDateString('en-GB')}</span></div></div>))}
+                                <div ref={notesEndRef} />
                             </div>
                             <div className="flex gap-2 mb-6"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="اكتب ملاحظة..." value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyPress={e=>e.key==='Enter'&&handleAddNote()} /><button onClick={handleAddNote} className="bg-gray-200 hover:bg-gray-300 p-2 rounded-lg"><Icon name="send" size={16}/></button></div>
                             <div className="mt-auto flex gap-3"><button onClick={onClose} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200">إلغاء</button><button onClick={handleSave} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 shadow-lg">حفظ البيانات</button></div>
