@@ -166,8 +166,81 @@
         const PROJECT_LIST = ["بيوتكم 10", "بيوتكم 11", "بيوتكم 12", "بيوتكم 13", "بيوتكم 14"];
         const CLIENT_SOURCES = ["مباشر", "عقار", "اعلانات رقمية", "توصية صديق"];
         
-        // *** SUPER ADMIN EMAIL (PROTECTED) ***
         const SUPER_ADMIN_EMAIL = "asaleh@boyoticom.com";
+
+        // --- HEADER WITH NOTIFICATIONS (NEW) ---
+        const Header = ({ title, clients, onToggleSidebar }) => {
+            const [showNotifs, setShowNotifs] = useState(false);
+            const today = new Date().toISOString().slice(0,10);
+            
+            // Logic for notifications
+            const reminders = clients.filter(c => c.nextFollowUp === today);
+            const newClients = clients.filter(c => c.dateAdded && c.dateAdded.startsWith(today));
+            
+            const allNotifs = [
+                ...reminders.map(c => ({ type: 'reminder', ...c })),
+                ...newClients.map(c => ({ type: 'new', ...c }))
+            ];
+
+            return (
+                <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-30">
+                    <div className="flex items-center gap-2">
+                        {/* Mobile Menu Button is here for layout balance */}
+                        <div className="md:hidden flex items-center gap-2 font-bold text-brand-900">
+                            <Logo size={32} /> بيوتكم
+                        </div>
+                        <div className="hidden md:block font-bold text-xl text-brand-900">
+                            {title}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {/* Notification Bell */}
+                        <div className="relative">
+                            <button onClick={() => setShowNotifs(!showNotifs)} className="p-2 rounded-full hover:bg-gray-100 relative text-gray-600 transition">
+                                <Icon name="bell" size={22} />
+                                {allNotifs.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
+                            </button>
+                            
+                            {/* Dropdown */}
+                            {showNotifs && (
+                                <>
+                                    <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowNotifs(false)}></div>
+                                    <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                        <div className="p-3 border-b bg-gray-50 font-bold text-sm text-brand-900 flex justify-between items-center">
+                                            <span>التنبيهات</span>
+                                            <span className="bg-brand-900 text-white text-xs px-2 py-0.5 rounded-full">{allNotifs.length}</span>
+                                        </div>
+                                        <div className="max-h-64 overflow-y-auto">
+                                            {allNotifs.length === 0 ? (
+                                                <div className="p-6 text-center text-gray-400 text-xs flex flex-col items-center gap-2">
+                                                    <Icon name="bell-off" size={24} className="opacity-50"/>
+                                                    لا توجد تنبيهات جديدة اليوم
+                                                </div>
+                                            ) : (
+                                                allNotifs.map((n, i) => (
+                                                    <div key={i} className="p-3 border-b last:border-0 hover:bg-gray-50 transition flex items-start gap-3 cursor-pointer">
+                                                        <div className={`p-2 rounded-full shrink-0 ${n.type==='reminder'?'bg-amber-100 text-amber-600':'bg-blue-100 text-blue-600'}`}>
+                                                            <Icon name={n.type==='reminder'?'clock':'user-plus'} size={16}/>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-bold text-brand-900">{safeStr(n.name)}</div>
+                                                            <div className="text-xs text-gray-500">{n.type==='reminder'?'متابعة مطلوبة اليوم':'عميل جديد أضيف اليوم'}</div>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <button onClick={onToggleSidebar} className="md:hidden text-gray-600 p-1"><Icon name="menu" size={24}/></button>
+                    </div>
+                </header>
+            )
+        }
 
         // --- LOGIN COMPONENT ---
         const Login = () => {
@@ -236,7 +309,6 @@
 
             return (
                 <div className="space-y-6">
-                    {/* Top Stats & Reminders */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center md:col-span-1">
                             <div>
@@ -318,7 +390,6 @@
 
             return (
                 <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-brand-900">تقارير أداء الموظفين</h2>
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                         <table className="w-full text-right">
                             <thead className="bg-gray-50 text-sm font-bold text-brand-900">
@@ -355,7 +426,8 @@
             const [search, setSearch] = useState('');
             const [filterStatus, setFilterStatus] = useState('');
             const [filterCreator, setFilterCreator] = useState('');
-            const [filterDate, setFilterDate] = useState('');
+            const [startDate, setStartDate] = useState('');
+            const [endDate, setEndDate] = useState('');
             const [itemsPerPage, setItemsPerPage] = useState(10);
             const [currentPage, setCurrentPage] = useState(1);
             const [deleteId, setDeleteId] = useState(null);
@@ -368,11 +440,12 @@
                 const matchesSearch = safeStr(c.name).toLowerCase().includes(s) || safeStr(c.phone).includes(s);
                 const matchesStatus = filterStatus ? c.status === filterStatus : true;
                 const matchesCreator = filterCreator ? c.addedBy === filterCreator : true;
-                const matchesDate = filterDate ? (c.dateAdded && c.dateAdded.startsWith(filterDate)) : true;
+                const clientDate = c.dateAdded ? c.dateAdded.slice(0, 10) : '';
+                const matchesDate = (startDate ? clientDate >= startDate : true) && (endDate ? clientDate <= endDate : true);
                 return matchesSearch && matchesStatus && matchesCreator && matchesDate;
             });
 
-            useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCreator, filterDate, itemsPerPage]);
+            useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCreator, startDate, endDate, itemsPerPage]);
 
             const totalPages = itemsPerPage === 'All' ? 1 : Math.ceil(filtered.length / itemsPerPage);
             const displayedClients = itemsPerPage === 'All' ? filtered : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -422,8 +495,8 @@
             return (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center flex-wrap gap-4">
-                        <h2 className="text-2xl font-bold text-brand-900">العملاء</h2>
-                        <div className="flex gap-2 flex-wrap">
+                        {/* Title removed from here as it is now in Header */}
+                        <div className="flex gap-2 flex-wrap mr-auto">
                              {currentUser.role === 'admin' && (
                                 <>
                                     <div className="relative overflow-hidden">
@@ -439,15 +512,13 @@
                     
                     <div className="bg-white p-3 rounded-xl shadow-sm border flex flex-wrap gap-2 items-center">
                         <input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 outline-none min-w-[150px] text-sm" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} />
-                        <input type="date" className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm date-en" value={filterDate} onChange={e=>setFilterDate(e.target.value)} title="فلتر بتاريخ الإضافة"/>
-                        <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="">كل الحالات</option>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
-                        {currentUser.role === 'admin' && (
-                            <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}><option value="">كل المنشئين</option>{creators.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                        )}
-                        <div className="flex items-center gap-1 bg-gray-50 rounded-lg px-2 border border-gray-100">
-                            <span className="text-xs text-gray-500">عرض:</span>
-                            <select className="bg-transparent py-2 outline-none text-sm font-bold" value={itemsPerPage} onChange={e => setItemsPerPage(e.target.value === 'All' ? 'All' : Number(e.target.value))}><option value={10}>10</option><option value={50}>50</option><option value={100}>100</option><option value="All">الكل</option></select>
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2 border border-gray-100">
+                            <span className="text-xs text-gray-500">من:</span><input type="date" className="bg-transparent py-2 outline-none text-sm date-en" value={startDate} onChange={e=>setStartDate(e.target.value)} />
+                            <span className="text-xs text-gray-500">إلى:</span><input type="date" className="bg-transparent py-2 outline-none text-sm date-en" value={endDate} onChange={e=>setEndDate(e.target.value)} />
                         </div>
+                        <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="">كل الحالات</option>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
+                        {currentUser.role === 'admin' && (<select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}><option value="">كل المنشئين</option>{creators.map(c=><option key={c} value={c}>{c}</option>)}</select>)}
+                        <div className="flex items-center gap-1 bg-gray-50 rounded-lg px-2 border border-gray-100"><span className="text-xs text-gray-500">عرض:</span><select className="bg-transparent py-2 outline-none text-sm font-bold" value={itemsPerPage} onChange={e => setItemsPerPage(e.target.value === 'All' ? 'All' : Number(e.target.value))}><option value={10}>10</option><option value={50}>50</option><option value={100}>100</option><option value="All">الكل</option></select></div>
                     </div>
 
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -548,9 +619,9 @@
             return (
                 <div className="space-y-6">
                     <div className="flex justify-between items-center">
-                        <h2 className="text-2xl font-bold text-brand-900">الموظفين</h2>
+                        {/* Title removed from here as it is now in Header */}
                         {currentUser.role === 'admin' && (
-                            <button onClick={()=>setShowAdd(true)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Icon name="user-plus" size={16}/> ربط حساب يدوياً</button>
+                            <button onClick={()=>setShowAdd(true)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 mr-auto"><Icon name="user-plus" size={16}/> ربط حساب يدوياً</button>
                         )}
                     </div>
                     
@@ -653,7 +724,7 @@
         };
 
         // --- BACKUP & RESTORE ---
-        const BackupSettings = ({ clients, users }) => { /* ... Same code ... */ return (<div className="space-y-6"><h2 className="text-2xl font-bold text-brand-900">الإعدادات والنسخ الاحتياطي</h2><div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"><button onClick={() => { const data = { clients, users, backupDate: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Boyoticom_Backup_${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); }} className="w-full bg-brand-900 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><Icon name="download" /> تحميل نسخة احتياطية</button></div></div>); };
+        const BackupSettings = ({ clients, users }) => { /* ... Same code ... */ return (<div className="space-y-6"><div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"><button onClick={() => { const data = { clients, users, backupDate: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Boyoticom_Backup_${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); }} className="w-full bg-brand-900 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><Icon name="download" /> تحميل نسخة احتياطية</button></div></div>); };
 
         // --- MAIN APP COMPONENT ---
         const App = () => {
@@ -700,6 +771,18 @@
                 alert('تم الاستيراد بنجاح!');
             };
 
+            // Helper to get page title
+            const getPageTitle = () => {
+                switch(page) {
+                    case 'dashboard': return 'لوحة التحكم';
+                    case 'clients': return 'العملاء والطلبات';
+                    case 'reports': return 'التقارير والأداء';
+                    case 'users': return 'الموظفين';
+                    case 'backup': return 'الإعدادات والنسخ';
+                    default: return '';
+                }
+            };
+
             if (loading) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
             
             if (!user) return <Login />;
@@ -728,7 +811,9 @@
                     </aside>
                     
                     <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                        <header className="md:hidden bg-white border-b p-4 flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-brand-900"><Logo size={32} /> بيوتكم</div><button onClick={()=>setSidebarOpen(true)}><Icon name="menu"/></button></header>
+                        {/* REPLACED HEADER WITH NEW NOTIFICATION HEADER */}
+                        <Header title={getPageTitle()} clients={clients} onToggleSidebar={()=>setSidebarOpen(true)} />
+                        
                         <div className="flex-1 overflow-y-auto p-6">
                             <div className="max-w-5xl mx-auto">
                                 <ErrorBoundary>
