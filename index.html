@@ -284,10 +284,11 @@
             );
         };
 
-        // --- USERS COMPONENT (Updated with Manual Add) ---
+        // --- USERS COMPONENT (Updated with Edit Name) ---
         const UsersList = ({ users, currentUser }) => {
             const [showAdd, setShowAdd] = useState(false);
             const [newUser, setNewUser] = useState({ name: '', email: '', uid: '', role: 'employee' });
+            const [editingUser, setEditingUser] = useState(null); // State for editing
 
             const toggleRole = (u) => {
                 if(!confirm(`هل تريد تغيير صلاحية ${safeStr(u.name)}؟`)) return;
@@ -304,6 +305,13 @@
                     alert('تم إضافة الموظف بنجاح');
                 });
             };
+
+            const handleUpdateUser = () => {
+                if(!editingUser.name) return alert('الاسم مطلوب');
+                update(ref(db, `users/${editingUser.id}`), { name: editingUser.name }).then(() => {
+                    setEditingUser(null);
+                });
+            }
 
             const safeUsers = users.filter(u => u && typeof u === 'object' && u.id);
 
@@ -327,6 +335,7 @@
                         </div>
                     </div>
 
+                    {/* Manual Add Form */}
                     {showAdd && (
                         <div className="bg-white p-4 rounded-xl shadow border border-brand-900/10 mb-4 animate-in fade-in slide-in-from-top-4">
                             <div className="flex justify-between mb-4 font-bold text-brand-900">
@@ -347,6 +356,7 @@
                         </div>
                     )}
 
+                    {/* Users List */}
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                         {safeUsers.map(u => (
                             <div key={u.id} className="flex justify-between items-center p-4 border-b last:border-0 hover:bg-gray-50">
@@ -361,15 +371,33 @@
                                     <span className={`px-3 py-1 rounded text-xs font-bold ${u.role==='admin' ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
                                         {u.role === 'admin' ? 'مسؤول' : 'موظف مبيعات'}
                                     </span>
-                                    {currentUser.role === 'admin' && currentUser.id !== u.id && (
-                                        <button onClick={()=>toggleRole(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تغيير الصلاحية">
-                                            <Icon name="arrow-up-down" size={16} />
-                                        </button>
+                                    {currentUser.role === 'admin' && (
+                                        <>
+                                            <button onClick={()=>setEditingUser(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تعديل الاسم">
+                                                <Icon name="pencil" size={16} />
+                                            </button>
+                                            {currentUser.id !== u.id && (
+                                                <button onClick={()=>toggleRole(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تغيير الصلاحية">
+                                                    <Icon name="arrow-up-down" size={16} />
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>
                         ))}
                     </div>
+
+                    {/* Edit Modal */}
+                    {editingUser && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                                <div className="flex justify-between mb-4"><h3 className="font-bold">تعديل الاسم</h3><button onClick={()=>setEditingUser(null)}><Icon name="x"/></button></div>
+                                <input className="w-full bg-gray-50 border rounded-lg p-3 mb-4" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name:e.target.value})} />
+                                <button onClick={handleUpdateUser} className="w-full bg-brand-900 text-white py-2 rounded-lg font-bold">حفظ</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
