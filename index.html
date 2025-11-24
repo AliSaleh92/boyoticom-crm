@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Boyoticom CRM</title>
+    <title>Boyoticom ERP System</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,7 +13,8 @@
           extend: {
             colors: {
               brand: { 900: '#2C3340', 800: '#1e232e', 50: '#f0f9ff' },
-              accent: { 400: '#E6BC76', 500: '#CE9B52', 600: '#b0823e' }
+              accent: { 400: '#E6BC76', 500: '#CE9B52', 600: '#b0823e' },
+              crm: { 500: '#6366f1', 600: '#4f46e5' }
             },
             fontFamily: { sans: ['Cairo', 'sans-serif'] }
           }
@@ -24,19 +25,21 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- React & Libraries (UMD) -->
+    <!-- Leaflet CSS (للخرائط) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- React & Libraries -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel Standalone -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- Icons & Charts -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- SheetJS for Excel Export/Import -->
+    <!-- SheetJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
@@ -44,29 +47,17 @@
       .date-en { font-family: sans-serif; direction: ltr; display: inline-block; }
       .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #2C3340; width: 24px; height: 24px; animation: spin 1s linear infinite; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      
-      /* Scrollbar Styling */
+      .leaflet-container { width: 100%; height: 100%; z-index: 1; border-radius: 0.75rem; }
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: #f1f1f1; }
       ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: #999; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <!-- Global Error Handler -->
-    <script>
-        window.onerror = function(msg, url, line, col, error) {
-            if (msg && msg.includes('ResizeObserver')) return false;
-            console.error("Global Error:", msg, error);
-            return false; 
-        };
-    </script>
-
-    <!-- App Script -->
     <script type="text/babel" data-type="module">
-        // --- FIREBASE CONFIGURATION (Boyoticom-15c4b) ---
+        // --- 1. FIREBASE CONFIGURATION (من ملفك المرفق) ---
         const firebaseConfig = {
           apiKey: "AIzaSyAOMnl9ikDMngZZH-eSa3ldqtDCh6qsy_U",
           authDomain: "boyoticom-15c4b.firebaseapp.com",
@@ -82,78 +73,34 @@
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getDatabase, ref, set, push, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // --- INITIALIZE FIREBASE ---
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        // --- UTILS ---
-        const safeStr = (val) => {
-            if (val === null || val === undefined) return '';
-            if (typeof val === 'string') return val;
-            if (typeof val === 'number') return String(val);
-            return ''; 
-        };
-        
-        const safeArr = (val) => {
-            if (!val) return [];
-            if (Array.isArray(val)) return val;
-            if (typeof val === 'object') return Object.values(val);
-            return [];
-        };
-
-        // --- EXCEL UTILS ---
-        const exportToExcel = (data, fileName) => {
-            const worksheet = XLSX.utils.json_to_sheet(data);
-            const workbook = XLSX.utils.book_new();
-            const wscols = [{wch: 20}, {wch: 15}, {wch: 20}, {wch: 15}, {wch: 20}, {wch: 20}];
-            worksheet['!cols'] = wscols;
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Clients");
-            XLSX.writeFile(workbook, `${fileName}.xlsx`);
-        };
-
-        // --- REACT COMPONENTS ---
         const { useState, useEffect, useMemo, useRef, Component } = window.React;
         const Recharts = window.Recharts || {};
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } = Recharts;
 
+        // --- UTILS ---
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} width={size} height={size} className={className}></i>;
         };
 
-        // --- LOGO COMPONENT ---
-        const Logo = ({ size = 40, className = "" }) => {
-            const [imgError, setImgError] = useState(false);
-            if (imgError) {
-                return (
-                    <div className={`bg-brand-900 rounded-2xl flex items-center justify-center text-accent-500 ${className}`} style={{ width: size, height: size }}>
-                        <Icon name="building-2" size={size * 0.6} />
-                    </div>
-                );
-            }
-            return <img src="logo.png" alt="Boyoticom" className={`object-contain ${className}`} style={{ width: size, height: size }} onError={() => setImgError(true)} />;
+        const safeStr = (val) => (val === null || val === undefined) ? '' : String(val);
+        const safeArr = (val) => Array.isArray(val) ? val : [];
+
+        const calculateDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371e3; const φ1 = lat1 * Math.PI/180; const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180; const Δλ = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         };
 
-        // --- ERROR BOUNDARY ---
-        class ErrorBoundary extends Component {
-            constructor(props) { super(props); this.state = { hasError: false }; }
-            static getDerivedStateFromError(error) { return { hasError: true }; }
-            componentDidCatch(error, errorInfo) { console.error("React Error:", error, errorInfo); }
-            render() {
-                if (this.state.hasError) {
-                    return (
-                        <div className="p-6 text-center bg-red-50 rounded-xl border border-red-100 m-4">
-                            <h3 className="text-red-800 font-bold">حدث خطأ في عرض هذا الجزء</h3>
-                            <button onClick={() => window.location.reload()} className="mt-2 text-sm text-red-600 underline">تحديث الصفحة</button>
-                        </div>
-                    );
-                }
-                return this.props.children;
-            }
-        }
+        const formatTime = (isoString) => new Date(isoString).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+        const formatDate = (isoString) => new Date(isoString).toLocaleDateString('en-GB');
 
-        // --- CONSTANTS ---
+        // --- CRM CONSTANTS ---
         const STATUS_LIST = [
           { key: 'New', label: 'عميل جديد', color: 'bg-blue-50 text-blue-700 border-blue-200' },
           { key: 'Contacted1', label: 'تم التواصل 1', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
@@ -165,817 +112,305 @@
         ];
         const PROJECT_LIST = ["بيوتكم 10", "بيوتكم 11", "بيوتكم 12", "بيوتكم 13", "بيوتكم 14"];
         const CLIENT_SOURCES = ["مباشر", "عقار", "اعلانات رقمية", "توصية صديق"];
-        
-        const SUPER_ADMIN_EMAIL = "asaleh@boyoticom.com";
 
-        // --- HEADER WITH NOTIFICATIONS ---
-        const Header = ({ title, clients, onToggleSidebar }) => {
-            const [showNotifs, setShowNotifs] = useState(false);
-            const today = new Date().toISOString().slice(0,10);
-            
-            const reminders = clients.filter(c => c.nextFollowUp === today);
-            const newClients = clients.filter(c => c.dateAdded && c.dateAdded.startsWith(today));
-            
-            const allNotifs = [
-                ...reminders.map(c => ({ type: 'reminder', ...c })),
-                ...newClients.map(c => ({ type: 'new', ...c }))
-            ];
+        // --- COMPONENTS ---
 
-            const formatTime = (dateStr) => {
-                if (!dateStr) return '';
-                try {
-                    return new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                } catch (e) { return ''; }
-            };
-
-            const deleteReminder = (e, client) => {
-                e.stopPropagation();
-                if(confirm('هل تريد حذف تنبيه المتابعة لهذا العميل؟')) {
-                    update(ref(db, `clients/${client.id}`), { nextFollowUp: '' });
-                }
-            };
-
-            return (
-                <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-30">
-                    <div className="flex items-center gap-2">
-                        <div className="md:hidden flex items-center gap-2 font-bold text-brand-900">
-                            <Logo size={32} /> بيوتكم
-                        </div>
-                        <div className="hidden md:block font-bold text-xl text-brand-900">
-                            {title}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <button onClick={() => setShowNotifs(!showNotifs)} className="p-2 rounded-full hover:bg-gray-100 relative text-gray-600 transition">
-                                <Icon name="bell" size={22} />
-                                {allNotifs.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
-                            </button>
-                            {showNotifs && (
-                                <>
-                                    <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowNotifs(false)}></div>
-                                    <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                                        <div className="p-3 border-b bg-gray-50 font-bold text-sm text-brand-900 flex justify-between items-center">
-                                            <span>التنبيهات</span>
-                                            <span className="bg-brand-900 text-white text-xs px-2 py-0.5 rounded-full">{allNotifs.length}</span>
-                                        </div>
-                                        <div className="max-h-64 overflow-y-auto">
-                                            {allNotifs.length === 0 ? (
-                                                <div className="p-6 text-center text-gray-400 text-xs flex flex-col items-center gap-2">
-                                                    <Icon name="bell-off" size={24} className="opacity-50"/>
-                                                    لا توجد تنبيهات جديدة اليوم
-                                                </div>
-                                            ) : (
-                                                allNotifs.map((n, i) => (
-                                                    <div key={i} className="p-3 border-b last:border-0 hover:bg-gray-50 transition flex items-start gap-3 cursor-pointer group">
-                                                        <div className={`p-2 rounded-full shrink-0 ${n.type==='reminder'?'bg-amber-100 text-amber-600':'bg-blue-100 text-blue-600'}`}>
-                                                            <Icon name={n.type==='reminder'?'clock':'user-plus'} size={16}/>
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <div className="text-sm font-bold text-brand-900 flex justify-between">
-                                                                <span>{safeStr(n.name)}</span>
-                                                                {n.type==='new' && <span className="text-[10px] text-gray-400 font-normal date-en">{formatTime(n.dateAdded)}</span>}
-                                                                
-                                                                {/* DELETE REMINDER BUTTON */}
-                                                                {n.type==='reminder' && (
-                                                                    <button onClick={(e)=>deleteReminder(e, n)} className="text-gray-300 hover:text-red-500 transition" title="حذف التنبيه">
-                                                                        <Icon name="trash-2" size={14} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 flex justify-between">
-                                                                <span>{n.type==='reminder'?'متابعة مطلوبة':'عميل جديد أضيف اليوم'}</span>
-                                                                {n.type==='reminder' && <span className="date-en text-[10px]">{n.nextFollowUp}</span>}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        <button onClick={onToggleSidebar} className="md:hidden text-gray-600 p-1"><Icon name="menu" size={24}/></button>
-                    </div>
-                </header>
-            )
-        }
-
-        // --- LOGIN COMPONENT ---
         const Login = () => {
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
             const [error, setError] = useState('');
             const [loading, setLoading] = useState(false);
-
             const handleLogin = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                setError('');
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (err) {
-                    console.error(err);
-                    let msg = 'خطأ في تسجيل الدخول.';
-                    if(err.code === 'auth/user-not-found') msg = 'المستخدم غير موجود';
-                    if(err.code === 'auth/wrong-password') msg = 'كلمة المرور خاطئة';
-                    setError(msg);
-                    setLoading(false);
-                }
+                e.preventDefault(); setLoading(true); setError('');
+                try { await signInWithEmailAndPassword(auth, email, password); } 
+                catch (err) { setError('البريد أو كلمة المرور غير صحيحة'); setLoading(false); }
             };
-
             return (
                 <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4">
                     <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md text-center">
-                        <div className="mx-auto flex items-center justify-center mb-6">
-                            <Logo size={120} />
-                        </div>
-                        <h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم العقارية</h1>
-                        <p className="text-gray-500 mb-8">نظام إدارة العملاء الداخلي</p>
+                        <div className="mx-auto flex items-center justify-center mb-6 bg-brand-900 w-20 h-20 rounded-2xl text-accent-500"><Icon name="box" size={40}/></div>
+                        <h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم ERP</h1>
+                        <p className="text-gray-500 mb-8">نظام الإدارة المتكامل</p>
                         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">{error}</div>}
-                        
                         <form onSubmit={handleLogin} className="space-y-4">
                             <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="email" required placeholder="البريد الإلكتروني" value={email} onChange={e=>setEmail(e.target.value)} />
                             <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="password" required placeholder="كلمة المرور" value={password} onChange={e=>setPassword(e.target.value)} />
-                            <button disabled={loading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg disabled:opacity-70">
-                                {loading ? 'جاري الدخول...' : 'تسجيل الدخول'}
-                            </button>
+                            <button disabled={loading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg disabled:opacity-70">{loading ? 'جاري الدخول...' : 'تسجيل الدخول'}</button>
                         </form>
                     </div>
                 </div>
             );
         };
 
-        // --- DASHBOARD COMPONENT ---
-        const Dashboard = ({ clients, currentUser }) => {
+        // --- ATTENDANCE MAP COMPONENT ---
+        const MapZoneEditor = ({ center, radius, onChange }) => {
+            const mapRef = useRef(null);
+            const mapObj = useRef(null);
+            const markerObj = useRef(null);
+            const circleObj = useRef(null);
+            useEffect(() => {
+                if (!mapRef.current) return;
+                if (!mapObj.current) {
+                    mapObj.current = L.map(mapRef.current).setView([center.lat, center.lng], 15);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapObj.current);
+                    const icon = L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png', shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
+                    markerObj.current = L.marker([center.lat, center.lng], { icon, draggable: true }).addTo(mapObj.current);
+                    circleObj.current = L.circle([center.lat, center.lng], { color: '#CE9B52', fillColor: '#CE9B52', fillOpacity: 0.2, radius: radius }).addTo(mapObj.current);
+                    const update = (lat, lng) => { markerObj.current.setLatLng([lat, lng]); circleObj.current.setLatLng([lat, lng]); onChange({ lat, lng }, radius); };
+                    mapObj.current.on('click', (e) => update(e.latlng.lat, e.latlng.lng));
+                    markerObj.current.on('dragend', (e) => { const l = e.target.getLatLng(); update(l.lat, l.lng); });
+                }
+            }, []);
+            useEffect(() => { if(circleObj.current) circleObj.current.setRadius(radius); }, [radius]);
+            return <div ref={mapRef} className="w-full h-64 rounded-xl z-0" />;
+        };
+
+        // --- MODULE: ATTENDANCE ---
+        const AttendanceModule = ({ user, zones, usersList, logs }) => {
+            const [tab, setTab] = useState(user.role === 'admin' ? 'summary' : 'my_attendance');
+            const [showZoneModal, setShowZoneModal] = useState(false);
+            const [newZone, setNewZone] = useState({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200 });
+            const myZone = zones.find(z => z.id === user.zoneId);
+            const [status, setStatus] = useState('loading'); 
+            const [distance, setDistance] = useState(0);
+            const [processing, setProcessing] = useState(false);
+            const [note, setNote] = useState('');
+
+            const handleAddZone = () => { push(ref(db, 'zones'), newZone); setShowZoneModal(false); alert('تم إضافة الموقع'); };
+            const exportReport = () => {
+                 const data = logs.map(l => {
+                    const u = usersList.find(x => x.id === l.uid);
+                    return { 'تاريخ': formatDate(l.timestamp), 'اسم': u?.name, 'نوع': l.type, 'وقت': formatTime(l.timestamp), 'ملاحظات': l.note };
+                });
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Att");
+                XLSX.writeFile(wb, "Attendance_Report.xlsx");
+            };
+
+            useEffect(() => {
+                if(tab !== 'my_attendance' || !myZone) return;
+                const checkLocation = () => {
+                    setStatus('loading');
+                    if (!navigator.geolocation) return setStatus('error');
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                            const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, myZone.lat, myZone.lng);
+                            setDistance(Math.round(d));
+                            setStatus(d <= myZone.radius ? 'in_range' : 'out_range');
+                        },
+                        (err) => { console.error(err); setStatus('error'); }, { enableHighAccuracy: true }
+                    );
+                };
+                checkLocation();
+            }, [tab, myZone]);
+
+            const handleAttendance = async (type) => {
+                if (status !== 'in_range') return;
+                setProcessing(true);
+                await push(ref(db, 'attendance'), { uid: user.id, type, timestamp: new Date().toISOString(), lat: myZone.lat, lng: myZone.lng, note });
+                alert('تم التسجيل بنجاح'); setProcessing(false); setNote('');
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold text-gray-800">نظام الحضور والانصراف</h2>
+                        {user.role === 'admin' && (
+                            <div className="flex gap-2 bg-white p-1 rounded-lg border">
+                                <button onClick={()=>setTab('summary')} className={`px-3 py-1 rounded text-sm ${tab==='summary'?'bg-accent-500 text-white':'hover:bg-gray-50'}`}>التقارير</button>
+                                <button onClick={()=>setTab('zones')} className={`px-3 py-1 rounded text-sm ${tab==='zones'?'bg-accent-500 text-white':'hover:bg-gray-50'}`}>المواقع</button>
+                                <button onClick={()=>setTab('my_attendance')} className={`px-3 py-1 rounded text-sm ${tab==='my_attendance'?'bg-accent-500 text-white':'hover:bg-gray-50'}`}>تسجيلي</button>
+                            </div>
+                        )}
+                    </div>
+                    {tab === 'summary' && user.role === 'admin' && (
+                        <div className="bg-white p-6 rounded-2xl shadow border">
+                            <div className="flex justify-between mb-4"><h3 className="font-bold">سجل الحركات</h3><button onClick={exportReport} className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded font-bold">Excel</button></div>
+                            <table className="w-full text-sm text-right"><thead className="bg-gray-50"><tr><th className="p-2">الموظف</th><th className="p-2">الحركة</th><th className="p-2">الوقت</th></tr></thead><tbody>{logs.slice().reverse().slice(0,10).map(l => (<tr key={l.id} className="border-b"><td className="p-2">{usersList.find(x=>x.id===l.uid)?.name}</td><td className="p-2">{l.type==='IN'?'دخول':'خروج'}</td><td className="p-2 date-en">{formatTime(l.timestamp)}</td></tr>))}</tbody></table>
+                        </div>
+                    )}
+                    {tab === 'zones' && user.role === 'admin' && (
+                        <div>
+                            <button onClick={()=>setShowZoneModal(true)} className="bg-brand-900 text-white px-4 py-2 rounded mb-4">إضافة موقع</button>
+                            <div className="grid gap-3">{zones.map(z=><div key={z.id} className="bg-white p-3 border rounded shadow-sm flex justify-between"><span>{z.name}</span><span className="text-gray-500 text-sm date-en">{z.startTime}-{z.endTime}</span></div>)}</div>
+                        </div>
+                    )}
+                    {tab === 'my_attendance' && (
+                        <div className="bg-white p-8 rounded-2xl shadow text-center max-w-lg mx-auto border-t-4 border-accent-500">
+                             {!myZone ? <div className="text-red-500">لم يتم تحديد موقع عمل لك. يرجى التواصل مع المدير لربطك بموقع.</div> : (
+                                <>
+                                    <div className="mb-6"><div className="text-sm text-gray-500">موقع عملك: {myZone.name}</div>{status === 'loading' && <div className="loader mx-auto mt-2"></div>}{status === 'in_range' && <div className="text-green-600 font-bold text-lg mt-2 flex items-center justify-center gap-2"><Icon name="map-pin"/> أنت في الموقع</div>}{status === 'out_range' && <div className="text-red-600 font-bold mt-2">خارج النطاق ({distance}م)</div>}</div>
+                                    <input className="w-full p-3 border rounded-xl mb-4 text-sm" placeholder="ملاحظة..." value={note} onChange={e=>setNote(e.target.value)} />
+                                    <div className="grid grid-cols-2 gap-4"><button disabled={status!=='in_range'||processing} onClick={()=>handleAttendance('IN')} className="bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 disabled:opacity-50">دخول</button><button disabled={status!=='in_range'||processing} onClick={()=>handleAttendance('OUT')} className="bg-red-600 text-white py-3 rounded-xl hover:bg-red-700 disabled:opacity-50">خروج</button></div>
+                                </>
+                             )}
+                        </div>
+                    )}
+                    {showZoneModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"><div className="bg-white w-full max-w-lg rounded-2xl p-6"><h3 className="font-bold mb-4">إضافة موقع</h3><input className="w-full border p-2 mb-2 rounded" placeholder="الاسم" value={newZone.name} onChange={e=>setNewZone({...newZone, name: e.target.value})} /><MapZoneEditor center={{lat: newZone.lat, lng: newZone.lng}} radius={newZone.radius} onChange={(c, r) => setNewZone({...newZone, lat: c.lat, lng: c.lng, radius: r})} /><div className="flex gap-2 mt-4"><button onClick={handleAddZone} className="flex-1 bg-brand-900 text-white py-2 rounded">حفظ</button><button onClick={()=>setShowZoneModal(false)} className="flex-1 bg-gray-100 py-2 rounded">إلغاء</button></div></div></div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- MODULE: CRM COMPONENTS ---
+        const Dashboard = ({ clients }) => {
             const totalClients = clients.length;
-            const today = new Date().toISOString().slice(0,10);
-            const reminders = clients.filter(c => c.nextFollowUp === today);
-
-            const statusData = STATUS_LIST.map(s => ({
-                name: s.label, 
-                count: clients.filter(c => c.status === s.key).length,
-                key: s.key,
-                color: s.color
-            }));
-            const projectStats = {};
-            clients.forEach(c => safeArr(c.projects).forEach(p => { const n = safeStr(p); if(n) projectStats[n] = (projectStats[n]||0)+1; }));
-            const projectData = Object.entries(projectStats).map(([name, value]) => ({ name, value }));
-            const sourceStats = {};
-            clients.forEach(c => { const s = safeStr(c.source) || 'غير محدد'; sourceStats[s] = (sourceStats[s]||0)+1; });
-            const sourceData = Object.entries(sourceStats).map(([name, value]) => ({ name, value }));
-            const COLORS = ['#2C3340', '#CE9B52', '#E6BC76', '#94a3b8', '#475569', '#64748b'];
-
+            const statusData = STATUS_LIST.map(s => ({ name: s.label, count: clients.filter(c => c.status === s.key).length, key: s.key, color: s.color }));
             return (
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center md:col-span-1">
-                            <div>
-                                <h2 className="text-lg font-bold opacity-80 mb-1">إجمالي العملاء</h2>
-                                <div className="text-4xl font-black">{totalClients}</div>
-                            </div>
-                            <div className="bg-white/10 p-4 rounded-full"><Icon name="users" size={32} /></div>
-                        </div>
-                        <div className="bg-white p-6 rounded-2xl shadow-lg border border-amber-100 md:col-span-2 overflow-hidden relative">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
-                            <div className="flex justify-between items-start mb-4">
-                                <h3 className="font-bold text-brand-900 flex items-center gap-2"><Icon name="bell" className="text-amber-500"/> تذكيرات اليوم ({reminders.length})</h3>
-                                <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded date-en">{today}</span>
-                            </div>
-                            {reminders.length > 0 ? (
-                                <div className="flex gap-3 overflow-x-auto pb-2">
-                                    {reminders.map(c => (
-                                        <div key={c.id} className="min-w-[200px] bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm">
-                                            <div className="font-bold text-brand-900 mb-1">{c.name}</div>
-                                            <div className="text-xs text-gray-500 mb-2 date-en">{c.phone}</div>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center text-gray-400 text-sm py-2">لا توجد متابعات مجدولة لليوم</div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 className="font-bold text-brand-900 mb-4 flex items-center gap-2"><Icon name="activity" size={18}/> حالة العملاء</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                            {statusData.map(s => (
-                                <div key={s.key} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                                    <div className="text-xs text-gray-500 font-bold mb-2">{s.name}</div>
-                                    <div className="flex justify-between items-end">
-                                        <div className="text-2xl font-black text-brand-900">{s.count}</div>
-                                        <div className={`w-2 h-2 rounded-full ${s.color.split(' ')[0].replace('bg-', 'bg-')}`}></div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    {window.Recharts && (
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
-                                <h3 className="font-bold text-brand-900 mb-4 text-sm">توزيع المشاريع</h3>
-                                <div className="h-64" dir="ltr"><ResponsiveContainer><PieChart><Pie data={projectData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">{projectData.map((e,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div>
-                            </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
-                                <h3 className="font-bold text-brand-900 mb-4 text-sm">مصادر العملاء</h3>
-                                <div className="h-64" dir="ltr"><ResponsiveContainer><PieChart><Pie data={sourceData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">{sourceData.map((e,i)=><Cell key={i} fill={COLORS[(i+2)%COLORS.length]}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div>
-                            </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
-                                <h3 className="font-bold text-brand-900 mb-4 text-sm">نظرة عامة</h3>
-                                <div className="h-64" dir="ltr"><ResponsiveContainer><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis/><Tooltip/><Bar dataKey="count" fill="#2C3340" radius={[4,4,0,0]} barSize={30}/></BarChart></ResponsiveContainer></div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
-        // --- REPORTS COMPONENT ---
-        const Reports = ({ clients, users }) => {
-            const [startDate, setStartDate] = useState('');
-            const [endDate, setEndDate] = useState('');
-
-            // Filter clients based on date range
-            const filteredClients = clients.filter(c => {
-                const clientDate = c.dateAdded ? c.dateAdded.slice(0, 10) : '';
-                const startMatch = startDate ? clientDate >= startDate : true;
-                const endMatch = endDate ? clientDate <= endDate : true;
-                return startMatch && endMatch;
-            });
-
-            const reportData = users.map(u => {
-                // FIX: Count only clients assigned to this user (not created by)
-                const userClients = filteredClients.filter(c => c.assignedTo === u.name);
-                return {
-                    id: u.id,
-                    name: u.name,
-                    email: u.email,
-                    total: userClients.length,
-                    sold: userClients.filter(c => c.status === 'Sold').length,
-                    deposit: userClients.filter(c => c.status === 'Deposit').length,
-                    inProgress: userClients.filter(c => ['New', 'Contacted1', 'Contacted2', 'Contacted3'].includes(c.status)).length
-                };
-            });
-
-            return (
-                <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-brand-900">تقارير أداء الموظفين</h2>
-                    
-                    {/* Reports Date Filter */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-gray-500">من:</span>
-                            <input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={startDate} onChange={e=>setStartDate(e.target.value)} />
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-gray-500">إلى:</span>
-                            <input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={endDate} onChange={e=>setEndDate(e.target.value)} />
-                        </div>
-                        {(startDate || endDate) && (
-                            <button onClick={()=>{setStartDate('');setEndDate('')}} className="text-xs text-red-500 hover:underline font-bold">إلغاء الفلتر</button>
-                        )}
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                        <table className="w-full text-right">
-                            <thead className="bg-gray-50 text-sm font-bold text-brand-900">
-                                <tr>
-                                    <th className="p-4">الموظف</th>
-                                    <th className="p-4 text-center">إجمالي العملاء (المسندين)</th>
-                                    <th className="p-4 text-center text-emerald-600">تم البيع</th>
-                                    <th className="p-4 text-center text-amber-600">عربون</th>
-                                    <th className="p-4 text-center text-blue-600">قيد المتابعة</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {reportData.map(r => (
-                                    <tr key={r.id} className="hover:bg-gray-50">
-                                        <td className="p-4">
-                                            <div className="font-bold text-brand-900">{r.name}</div>
-                                            <div className="text-xs text-gray-500 date-en">{r.email}</div>
-                                        </td>
-                                        <td className="p-4 text-center font-bold">{r.total}</td>
-                                        <td className="p-4 text-center font-bold text-emerald-600">{r.sold}</td>
-                                        <td className="p-4 text-center font-bold text-amber-600">{r.deposit}</td>
-                                        <td className="p-4 text-center font-bold text-blue-600">{r.inProgress}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center"><div><h2 className="text-lg font-bold opacity-80 mb-1">إجمالي العملاء</h2><div className="text-4xl font-black">{totalClients}</div></div><div className="bg-white/10 p-4 rounded-full"><Icon name="users" size={32} /></div></div>
+                        <div className="bg-white p-6 rounded-2xl shadow-lg border border-amber-100 md:col-span-2 relative"><div className="flex justify-between items-start mb-4"><h3 className="font-bold text-brand-900 flex items-center gap-2"><Icon name="activity" className="text-amber-500"/> نظرة عامة</h3></div><div className="h-24 flex items-end gap-2">{statusData.map(s=><div key={s.key} style={{height: `${Math.max(10, (s.count/totalClients)*100)}%`}} className={`flex-1 rounded-t-lg ${s.color.split(' ')[0]} opacity-80`} title={`${s.name}: ${s.count}`}></div>)}</div></div>
                     </div>
                 </div>
             );
         };
 
-        // --- CLIENT LIST COMPONENT ---
-        const ClientList = ({ clients, users, currentUser, onEdit, onAdd, onImport }) => {
+        const ClientList = ({ clients, users, currentUser, onAdd, onEdit }) => {
             const [search, setSearch] = useState('');
-            const [filterStatus, setFilterStatus] = useState('');
-            const [filterCreator, setFilterCreator] = useState('');
-            const [filterAssignee, setFilterAssignee] = useState('');
-            const [startDate, setStartDate] = useState('');
-            const [endDate, setEndDate] = useState('');
-            const [itemsPerPage, setItemsPerPage] = useState(10);
-            const [currentPage, setCurrentPage] = useState(1);
-            const [deleteId, setDeleteId] = useState(null);
-            
-            const creators = useMemo(() => [...new Set(clients.map(c => c.addedBy).filter(Boolean))], [clients]);
-            const assignees = useMemo(() => [...new Set(clients.map(c => c.assignedTo).filter(Boolean))], [clients]);
-
-            const filtered = clients.filter(c => {
-                if(currentUser.role !== 'admin' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false;
-                const s = safeStr(search).toLowerCase();
-                const matchesSearch = safeStr(c.name).toLowerCase().includes(s) || safeStr(c.phone).includes(s);
-                const matchesStatus = filterStatus ? c.status === filterStatus : true;
-                const matchesCreator = filterCreator ? c.addedBy === filterCreator : true;
-                const matchesAssignee = filterAssignee ? c.assignedTo === filterAssignee : true;
-                const clientDate = c.dateAdded ? c.dateAdded.slice(0, 10) : '';
-                const matchesDate = (startDate ? clientDate >= startDate : true) && (endDate ? clientDate <= endDate : true);
-                return matchesSearch && matchesStatus && matchesCreator && matchesAssignee && matchesDate;
-            });
-
-            useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCreator, filterAssignee, startDate, endDate, itemsPerPage]);
-
-            const totalPages = itemsPerPage === 'All' ? 1 : Math.ceil(filtered.length / itemsPerPage);
-            const displayedClients = itemsPerPage === 'All' ? filtered : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-            const handleExport = () => {
-                const excelData = filtered.map(c => ({
-                    'الاسم': c.name,
-                    'رقم الهاتف': c.phone,
-                    'المشاريع': safeArr(c.projects).join(', '),
-                    'الحالة': STATUS_LIST.find(s=>s.key===c.status)?.label || c.status,
-                    'المنشئ': c.addedBy || 'غير مسند',
-                    'الموظف': c.assignedTo || 'غير مسند',
-                    'المصدر': c.source || '-',
-                    'رقم الوحدة': c.unitNumber || '-',
-                    'تاريخ الإضافة': c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'
-                }));
-                exportToExcel(excelData, `Boyoticom_Clients_${new Date().toISOString().slice(0,10)}`);
-            };
-
-            const handleImport = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const bstr = evt.target.result;
-                    const wb = XLSX.read(bstr, { type: 'binary' });
-                    const wsname = wb.SheetNames[0];
-                    const ws = wb.Sheets[wsname];
-                    const data = XLSX.utils.sheet_to_json(ws);
-                    onImport(data);
-                };
-                reader.readAsBinaryString(file);
-            };
-
-            const getWhatsAppLink = (phone) => {
-                let p = safeStr(phone).trim();
-                if(p.startsWith('0')) p = p.substring(1);
-                return `https://wa.me/966${p}`;
-            };
-
-            const confirmDelete = () => {
-                if (deleteId) {
-                    remove(ref(db, `clients/${deleteId}`));
-                    setDeleteId(null);
-                }
-            };
-
+            const filtered = clients.filter(c => (currentUser.role === 'admin' || c.assignedTo === currentUser.name || c.addedBy === currentUser.email) && (safeStr(c.name).includes(search) || safeStr(c.phone).includes(search)));
             return (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center flex-wrap gap-4">
-                        <div className="flex gap-2 flex-wrap mr-auto">
-                             {currentUser.role === 'admin' && (
-                                <>
-                                    <div className="relative overflow-hidden">
-                                        <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="upload" size={18}/> استيراد Excel</button>
-                                        <input type="file" accept=".xlsx, .xls" onChange={handleImport} className="absolute inset-0 opacity-0 cursor-pointer" title="رفع ملف إكسل" />
-                                    </div>
-                                    <button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="file-spreadsheet" size={18}/> تصدير Excel</button>
-                                </>
-                             )}
-                            <button onClick={onAdd} className="bg-brand-900 hover:bg-brand-800 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="plus" size={18}/> إضافة عميل</button>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white p-3 rounded-xl shadow-sm border flex flex-wrap gap-2 items-center">
-                        <input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 outline-none min-w-[150px] text-sm" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} />
-                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2 border border-gray-100">
-                            <span className="text-xs text-gray-500">من:</span><input type="date" className="bg-transparent py-2 outline-none text-sm date-en" value={startDate} onChange={e=>setStartDate(e.target.value)} />
-                            <span className="text-xs text-gray-500">إلى:</span><input type="date" className="bg-transparent py-2 outline-none text-sm date-en" value={endDate} onChange={e=>setEndDate(e.target.value)} />
-                        </div>
-                        <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="">كل الحالات</option>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
-                        <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)}><option value="">كل الموظفين</option>{assignees.map(a=><option key={a} value={a}>{a}</option>)}</select>
-                        {currentUser.role === 'admin' && (
-                            <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}><option value="">كل المنشئين</option>{creators.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                        )}
-                        <div className="flex items-center gap-1 bg-gray-50 rounded-lg px-2 border border-gray-100"><span className="text-xs text-gray-500">عرض:</span><select className="bg-transparent py-2 outline-none text-sm font-bold" value={itemsPerPage} onChange={e => setItemsPerPage(e.target.value === 'All' ? 'All' : Number(e.target.value))}><option value={10}>10</option><option value={50}>50</option><option value={100}>100</option><option value="All">الكل</option></select></div>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-right">
-                                <thead className="bg-gray-50 text-sm font-bold text-brand-900">
-                                    <tr>
-                                        <th className="p-4 min-w-[150px]">الاسم</th>
-                                        <th className="p-4 min-w-[120px]">المشاريع</th>
-                                        <th className="p-4 min-w-[100px]">تاريخ الإضافة</th>
-                                        <th className="p-4 min-w-[100px]">الحالة</th>
-                                        <th className="p-4 min-w-[120px]">الموظف</th>
-                                        <th className="p-4 min-w-[150px]">المنشئ</th>
-                                        <th className="p-4 min-w-[100px]">متابعة</th>
-                                        <th className="p-4 min-w-[100px]"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {displayedClients.length > 0 ? displayedClients.map(c => (
-                                        <tr key={c.id} className="hover:bg-gray-50 group">
-                                            <td className="p-4">
-                                                <div className="font-bold text-brand-900">{safeStr(c.name)}</div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-xs text-gray-500 date-en">{safeStr(c.phone)}</span>
-                                                    <a href={`tel:${safeStr(c.phone)}`} className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-full transition" title="اتصال"><Icon name="phone" size={14} /></a>
-                                                    <a href={getWhatsAppLink(c.phone)} target="_blank" rel="noreferrer" className="bg-green-50 text-green-600 hover:bg-green-100 p-1.5 rounded-full transition" title="واتساب"><Icon name="message-circle" size={14} /></a>
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-sm text-gray-600">{safeArr(c.projects).map((p,i)=><div key={i}>• {safeStr(p)}</div>)}</td>
-                                            <td className="p-4 text-xs text-gray-500 date-en">{c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'}</td>
-                                            <td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td>
-                                            <td className="p-4 text-sm text-gray-600">{safeStr(c.assignedTo)}</td>
-                                            <td className="p-4 text-sm text-gray-600 date-en">{safeStr(c.addedBy)}</td>
-                                            <td className="p-4 text-xs text-amber-600 font-bold date-en">{c.nextFollowUp || '-'}</td>
-                                            <td className="p-4 flex items-center gap-2">
-                                                <button onClick={()=>onEdit(c)} className="text-brand-900 hover:bg-gray-100 p-2 rounded"><Icon name="edit" size={16}/></button>
-                                                {currentUser.role === 'admin' && (<button onClick={()=>setDeleteId(c.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Icon name="trash-2" size={16}/></button>)}
-                                            </td>
-                                        </tr>
-                                    )) : (<tr><td colSpan="8" className="p-8 text-center text-gray-400">لا توجد نتائج مطابقة</td></tr>)}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        {totalPages > 1 && (
-                            <div className="flex justify-between items-center p-4 bg-gray-50 border-t">
-                                <div className="text-xs text-gray-500">عرض {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filtered.length)} من {filtered.length}</div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 text-sm">السابق</button>
-                                    <span className="px-3 py-1 text-sm font-bold flex items-center">{currentPage} / {totalPages}</span>
-                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 text-sm">التالي</button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {deleteId && (
-                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                            <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full text-center">
-                                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="trash-2" size={32}/></div>
-                                <h3 className="text-lg font-bold mb-2">هل أنت متأكد؟</h3>
-                                <p className="text-gray-500 mb-6">سيتم حذف هذا العميل نهائياً.</p>
-                                <div className="flex gap-3 justify-center">
-                                    <button onClick={confirmDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700">نعم، حذف</button>
-                                    <button onClick={()=>setDeleteId(null)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold hover:bg-gray-300">إلغاء</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    <div className="flex justify-between"><input className="bg-white border rounded-xl px-4 py-2 w-64 shadow-sm" placeholder="بحث باسم العميل..." value={search} onChange={e=>setSearch(e.target.value)} /><button onClick={onAdd} className="bg-brand-900 text-white px-4 py-2 rounded-xl font-bold flex gap-2"><Icon name="plus" size={18}/> إضافة عميل</button></div>
+                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-right"><thead className="bg-gray-50 font-bold text-brand-900"><tr><th className="p-4">الاسم</th><th className="p-4">المشاريع</th><th className="p-4">الحالة</th><th className="p-4">الموظف</th><th className="p-4"></th></tr></thead><tbody className="divide-y">{filtered.map(c=>(<tr key={c.id} className="hover:bg-gray-50"><td className="p-4 font-bold">{c.name}<div className="text-xs text-gray-500 date-en">{c.phone}</div></td><td className="p-4 text-sm">{safeArr(c.projects).join(', ')}</td><td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td><td className="p-4 text-sm">{c.assignedTo}</td><td className="p-4"><button onClick={()=>onEdit(c)} className="text-brand-900"><Icon name="edit" size={18}/></button></td></tr>))}</tbody></table></div>
                 </div>
             );
         };
 
-        // --- USERS COMPONENT ---
-        const UsersList = ({ users, currentUser }) => {
-            const [showAdd, setShowAdd] = useState(false);
-            const [newUser, setNewUser] = useState({ name: '', email: '', uid: '', role: 'employee' });
-            const [editingUser, setEditingUser] = useState(null);
-
-            const handleManualAdd = (e) => {
-                e.preventDefault();
-                if(!newUser.uid) return alert('الرجاء إدخال User UID');
-                set(ref(db, `users/${newUser.uid}`), newUser).then(() => {
-                    setShowAdd(false);
-                    setNewUser({ name: '', email: '', uid: '', role: 'employee' });
-                    alert('تم إضافة الموظف بنجاح');
-                });
-            };
-
-            const handleUpdateUser = () => {
-                if(!editingUser.name) return alert('الاسم مطلوب');
-                if (editingUser.email === SUPER_ADMIN_EMAIL) return alert("لا يمكن تعديل بيانات المسؤول الرئيسي.");
-                update(ref(db, `users/${editingUser.id}`), { name: editingUser.name, role: editingUser.role }).then(() => {
-                    setEditingUser(null);
-                });
-            };
-
-            const safeUsers = users.filter(u => u && typeof u === 'object' && u.id);
-
-            return (
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-2xl font-bold text-brand-900">الموظفين</h2>
-                        {currentUser.role === 'admin' && (
-                            <button onClick={()=>setShowAdd(true)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Icon name="user-plus" size={16}/> ربط حساب يدوياً</button>
-                        )}
-                    </div>
-                    
-                    {showAdd && (
-                        <div className="bg-white p-4 rounded-xl shadow border border-brand-900/10 mb-4">
-                            <div className="flex justify-between mb-4 font-bold text-brand-900"><span>إضافة موظف</span><button onClick={()=>setShowAdd(false)}><Icon name="x" size={16}/></button></div>
-                            <form onSubmit={handleManualAdd} className="grid md:grid-cols-5 gap-3">
-                                <input required className="p-2 border rounded bg-gray-50" placeholder="الاسم" value={newUser.name} onChange={e=>setNewUser({...newUser, name: e.target.value})} />
-                                <input required className="p-2 border rounded bg-gray-50 date-en text-right" placeholder="البريد الإلكتروني" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} />
-                                <input required className="p-2 border rounded bg-gray-50 date-en text-right" placeholder="UID" value={newUser.uid} onChange={e=>setNewUser({...newUser, uid: e.target.value})} />
-                                <select className="p-2 border rounded bg-gray-50" value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})}><option value="employee">موظف مبيعات</option><option value="admin">مسؤول</option></select>
-                                <button className="bg-brand-900 text-white font-bold rounded p-2">حفظ</button>
-                            </form>
-                        </div>
-                    )}
-
-                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                        {safeUsers.map(u => (
-                            <div key={u.id} className="flex justify-between items-center p-4 border-b last:border-0 hover:bg-gray-50">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500">{safeStr(u.name).charAt(0)}</div>
-                                    <div><div className="font-bold text-brand-900">{safeStr(u.name)}</div><div className="text-xs text-gray-500 date-en">{safeStr(u.email)}</div></div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className={`px-3 py-1 rounded text-xs font-bold ${u.role==='admin' ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-700'}`}>{u.role === 'admin' ? 'مسؤول' : 'موظف مبيعات'}</span>
-                                    {currentUser.role === 'admin' && u.email !== SUPER_ADMIN_EMAIL && (<button onClick={()=>setEditingUser(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تعديل الموظف"><Icon name="pencil" size={16} /></button>)}
-                                    {u.email === SUPER_ADMIN_EMAIL && <span className="p-2 text-gray-300" title="محمي"><Icon name="lock" size={16} /></span>}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {editingUser && (
-                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                            <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-                                <div className="flex justify-between mb-6"><h3 className="font-bold text-lg text-brand-900">تعديل بيانات الموظف</h3><button onClick={()=>setEditingUser(null)}><Icon name="x"/></button></div>
-                                <div className="space-y-4">
-                                    <div><label className="text-xs font-bold text-gray-500 block mb-1">الاسم</label><input className="w-full bg-gray-50 border rounded-lg p-3" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name:e.target.value})} /></div>
-                                    <div><label className="text-xs font-bold text-gray-500 block mb-1">الصلاحية</label><select className="w-full bg-gray-50 border rounded-lg p-3" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role:e.target.value})} disabled={currentUser.id === editingUser.id}><option value="employee">موظف مبيعات</option><option value="admin">مسؤول</option></select></div>
-                                    <button onClick={handleUpdateUser} className="w-full bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 transition">حفظ التغييرات</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
-        // --- CLIENT MODAL WITH ACTIVITY LOG (NEW) ---
         const ClientModal = ({ isOpen, onClose, client, onSave, users, currentUser }) => {
             const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' });
-            const [newNote, setNewNote] = useState('');
-            const [notes, setNotes] = useState([]);
-            const [events, setEvents] = useState([]); // New Events State
-            const [activeTab, setActiveTab] = useState('notes'); // Tab state: 'notes' or 'events'
-            const notesEndRef = useRef(null);
-
-            useEffect(() => { 
-                if(client) {
-                    setD(client);
-                    setNotes(client.notes ? Object.values(client.notes) : []);
-                    setEvents(client.events ? Object.values(client.events).reverse() : []); // Load events (newest first)
-                } else {
-                    setD({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' });
-                    setNotes([]);
-                    setEvents([]);
-                }
-            }, [client]);
-
-            useEffect(() => {
-                if (activeTab === 'notes') notesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-            }, [notes, isOpen, activeTab]);
-
-            const logEvent = (action) => {
-                 const eventData = {
-                    action: action,
-                    user: currentUser.name,
-                    date: new Date().toISOString()
-                };
-                // Optimistic update
-                setEvents([eventData, ...events]);
-                if (client) {
-                    push(ref(db, `clients/${client.id}/events`), eventData);
-                }
-                // Return the event object if needed
-                return eventData;
-            };
-
+            useEffect(() => { if(client) setD(client); else setD({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' }); }, [client]);
             const toggleProject = (p) => { const curr = safeArr(d.projects); setD({ ...d, projects: curr.includes(p) ? curr.filter(x=>x!==p) : [...curr, p] }); };
-
-            const handleAddNote = () => {
-                if(!newNote.trim()) return;
-                const noteData = { text: newNote, date: new Date().toISOString(), author: currentUser.name };
-                const updatedNotes = [...notes, noteData];
-                setNotes(updatedNotes);
-                
-                if(client) {
-                    push(ref(db, `clients/${client.id}/notes`), noteData);
-                    logEvent('إضافة ملاحظة جديدة'); // Log event
-                } else {
-                    setD({...d, notes: updatedNotes});
-                }
-                setNewNote('');
-            };
-
-            const handleSave = () => {
-                // Detect changes for logging
-                if (client) {
-                    if (d.status !== client.status) logEvent(`تغيير الحالة إلى ${STATUS_LIST.find(s=>s.key===d.status)?.label}`);
-                    if (d.assignedTo !== client.assignedTo) logEvent(`تم إسناد العميل إلى ${d.assignedTo}`);
-                    if (d.name !== client.name) logEvent('تعديل اسم العميل');
-                    if (d.phone !== client.phone) logEvent('تعديل رقم الهاتف');
-                }
-                
-                onSave(client ? d : { ...d, notes: notes, events: client ? [] : [{action: 'إنشاء العميل', user: currentUser.name, date: new Date().toISOString()}] });
-            }
-
             return (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-3xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Left Column: Client Data */}
-                        <div className="space-y-4">
-                            <div className="flex justify-between mb-2"><h3 className="font-bold text-lg">{client?'تعديل العميل':'إضافة عميل'}</h3></div>
-                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} />
-                            <input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} />
-                            <div><label className="text-xs font-bold block mb-2">المشاريع</label><div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div></div>
-                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>
-                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} />
-                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
-                            <select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role!=='admin'}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>
-                            <div><label className="text-xs font-bold block mb-1 text-amber-600">تاريخ المتابعة القادم</label><input type="date" className="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 date-en" value={d.nextFollowUp || ''} onChange={e=>setD({...d, nextFollowUp:e.target.value})} /></div>
-                        </div>
-
-                        {/* Right Column: Tabs (Notes & Activity) */}
-                        <div className="flex flex-col h-full">
-                            <div className="flex gap-2 mb-4 border-b">
-                                <button onClick={()=>setActiveTab('notes')} className={`pb-2 px-4 text-sm font-bold transition ${activeTab==='notes'?'text-brand-900 border-b-2 border-brand-900':'text-gray-400 hover:text-gray-600'}`}>الملاحظات</button>
-                                <button onClick={()=>setActiveTab('events')} className={`pb-2 px-4 text-sm font-bold transition ${activeTab==='events'?'text-brand-900 border-b-2 border-brand-900':'text-gray-400 hover:text-gray-600'}`}>سجل النشاط</button>
-                                <div className="flex-1 text-left md:hidden"><button onClick={onClose}><Icon name="x"/></button></div>
-                            </div>
-
-                            {/* Notes Tab */}
-                            {activeTab === 'notes' && (
-                                <>
-                                    <div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[400px] space-y-3">
-                                        {notes.length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا توجد ملاحظات بعد</div>}
-                                        {notes.map((n, i) => (<div key={i} className="bg-white p-3 rounded-lg border shadow-sm text-sm"><p className="text-gray-800 mb-2">{n.text}</p><div className="flex justify-between text-xs text-gray-400"><span>{n.author}</span><span className="date-en">{new Date(n.date).toLocaleDateString('en-GB')}</span></div></div>))}
-                                        <div ref={notesEndRef} />
-                                    </div>
-                                    <div className="flex gap-2 mb-6"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="اكتب ملاحظة..." value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyPress={e=>e.key==='Enter'&&handleAddNote()} /><button onClick={handleAddNote} className="bg-gray-200 hover:bg-gray-300 p-2 rounded-lg"><Icon name="send" size={16}/></button></div>
-                                </>
-                            )}
-
-                            {/* Activity Log Tab */}
-                            {activeTab === 'events' && (
-                                <div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[450px] space-y-4">
-                                    {events.length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا يوجد نشاط مسجل بعد</div>}
-                                    {events.map((ev, i) => (
-                                        <div key={i} className="flex gap-3 items-start text-sm">
-                                            <div className="mt-1 text-gray-400"><Icon name="circle-dot" size={12} /></div>
-                                            <div>
-                                                <div className="font-bold text-gray-800">{ev.action}</div>
-                                                <div className="text-xs text-gray-500 mt-1 flex gap-2">
-                                                    <span className="flex items-center gap-1"><Icon name="user" size={10}/> {ev.user}</span>
-                                                    <span className="date-en flex items-center gap-1"><Icon name="clock" size={10}/> {new Date(ev.date).toLocaleString('en-GB', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            
-                            <div className="mt-auto flex gap-3"><button onClick={onClose} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200">إلغاء</button><button onClick={handleSave} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 shadow-lg">حفظ البيانات</button></div>
-                        </div>
-                    </div>
-                </div>
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"><div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl space-y-4"><h3 className="font-bold text-lg">{client?'تعديل العميل':'إضافة عميل'}</h3><input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} /><input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} /><div><label className="text-xs font-bold block mb-2">المشاريع</label><div className="flex flex-wrap gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div></div><select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select><select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role!=='admin'}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select><div className="flex gap-3"><button onClick={onClose} className="flex-1 bg-gray-100 py-3 rounded-lg">إلغاء</button><button onClick={()=>onSave(d)} className="flex-1 bg-brand-900 text-white py-3 rounded-lg">حفظ</button></div></div></div>
             );
         };
 
-        // --- BACKUP & RESTORE ---
-        const BackupSettings = ({ clients, users }) => { /* ... Same code ... */ return (<div className="space-y-6"><div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"><button onClick={() => { const data = { clients, users, backupDate: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Boyoticom_Backup_${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); }} className="w-full bg-brand-900 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><Icon name="download" /> تحميل نسخة احتياطية</button></div></div>); };
-
-        // --- MAIN APP COMPONENT ---
+        // --- MAIN APP (CONTAINER) ---
         const App = () => {
             const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [page, setPage] = useState('dashboard');
+            const [dbUser, setDbUser] = useState(null);
+            const [currentApp, setCurrentApp] = useState('crm'); // 'crm' | 'attendance'
+            const [subPage, setSubPage] = useState('dashboard'); // for CRM sidebar
             const [clients, setClients] = useState([]);
             const [users, setUsers] = useState([]);
-            const [sidebarOpen, setSidebarOpen] = useState(false);
+            const [zones, setZones] = useState([]);
+            const [logs, setLogs] = useState([]);
+            const [loading, setLoading] = useState(true);
             const [modalOpen, setModalOpen] = useState(false);
             const [editClient, setEditClient] = useState(null);
 
             useEffect(() => {
-                return onAuthStateChanged(auth, async (u) => {
-                    if (u && !u.isAnonymous) {
-                        const userRef = ref(db, `users/${u.uid}`);
-                        try { const snapshot = await get(userRef); if (!snapshot.exists()) await set(userRef, { name: 'مستخدم جديد', email: u.email, role: 'employee', createdAt: new Date().toISOString() }); } catch (err) { console.error(err); }
-                        onValue(userRef, (s) => { const d = s.val(); setUser(d ? { id: u.uid, email: u.email, ...d } : { id: u.uid, email: u.email, name: 'User', role: 'employee' }); setLoading(false); });
-                        onValue(ref(db, 'clients'), s => { try { setClients(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})).reverse() : []) } catch(e) { setClients([]) } });
-                        onValue(ref(db, 'users'), s => { try { setUsers(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []) } catch(e) { setUsers([]) } });
-                    } else { setUser(null); setLoading(false); }
+                const unsub = onAuthStateChanged(auth, u => {
+                    if (u) {
+                        setUser(u);
+                        // Fetch Users to find Role & Zone
+                        onValue(ref(db, 'users'), s => {
+                            const data = s.val() || {};
+                            const list = Object.keys(data).map(k => ({ id: k, ...data[k] }));
+                            setUsers(list);
+                            const profile = list.find(x => x.email.toLowerCase() === u.email.toLowerCase());
+                            
+                            // دمج بيانات الدخول مع بيانات الملف الشخصي
+                            if (u.email.toLowerCase() === 'asleh@boyoticom.com') {
+                                setDbUser({ ...profile, id: u.uid, role: 'admin', name: 'Ali Saleh', email: u.email });
+                            } else {
+                                setDbUser(profile ? { ...profile, id: u.uid } : { id: u.uid, email: u.email, role: 'employee', name: 'مستخدم جديد' });
+                            }
+                        });
+                        // Fetch CRM Data
+                        onValue(ref(db, 'clients'), s => setClients(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})).reverse() : []));
+                        // Fetch Attendance Data
+                        onValue(ref(db, 'zones'), s => setZones(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []));
+                        onValue(ref(db, 'attendance'), s => setLogs(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []));
+                    } else {
+                        setUser(null); setDbUser(null);
+                    }
+                    setLoading(false);
                 });
+                return () => unsub();
             }, []);
 
             const saveClient = (data) => {
                 const payload = { ...data, assignedTo: safeStr(data.assignedTo), projects: safeArr(data.projects) };
-                
-                // Handling events logging for new clients inside the save function is tricky because we need the ID
-                // So we handle updates here, but initial creation log is done inside ClientModal or handled by adding the event to payload
-                
                 if (editClient) update(ref(db, `clients/${editClient.id}`), payload);
-                else {
-                    // For new client, ensure event is present
-                    const initialEvent = { action: 'تم إنشاء العميل', user: user.name, date: new Date().toISOString() };
-                    // We need to push the client first to get ID, then push event? No, push allows nested.
-                    // But our structure uses sub-collection for notes/events.
-                    // So we push client, then push event.
-                    const newRef = push(ref(db, 'clients'), { ...payload, dateAdded: new Date().toISOString(), addedBy: user.email });
-                    push(ref(db, `clients/${newRef.key}/events`), initialEvent);
-                }
+                else push(ref(db, 'clients'), { ...payload, dateAdded: new Date().toISOString(), addedBy: dbUser.email });
                 setModalOpen(false);
             };
 
-            const handleImport = (data) => {
-                if(!confirm(`سيتم استيراد ${data.length} عميل. هل أنت متأكد؟`)) return;
-                data.forEach(row => {
-                    push(ref(db, 'clients'), {
-                        name: row['الاسم'] || row['Name'] || 'No Name',
-                        phone: row['رقم الهاتف'] || row['Phone'] || '',
-                        projects: [row['المشروع'] || ''],
-                        status: 'New',
-                        addedBy: user.email,
-                        dateAdded: new Date().toISOString()
-                    });
-                });
-                alert('تم الاستيراد بنجاح!');
-            };
-
-            // Helper to get page title
-            const getPageTitle = () => {
-                switch(page) {
-                    case 'dashboard': return 'لوحة التحكم';
-                    case 'clients': return 'العملاء والطلبات';
-                    case 'reports': return 'التقارير والأداء';
-                    case 'users': return 'الموظفين';
-                    case 'backup': return 'الإعدادات والنسخ';
-                    default: return '';
-                }
-            };
-
             if (loading) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
-            
             if (!user) return <Login />;
+            if (!dbUser) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
 
             return (
-                <div className="min-h-screen flex">
-                    <aside className={`fixed md:sticky top-0 h-screen w-72 bg-white border-l z-50 transition-transform ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
-                        <div className="p-6 h-full flex flex-col">
-                            <div className="flex items-center gap-2 mb-8 text-brand-900 font-black text-xl"><Logo size={40} /> بيوتكم</div>
-                            <nav className="flex-1 space-y-1">
-                                <button onClick={()=>{setPage('dashboard');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='dashboard'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="layout-dashboard"/> لوحة التحكم</button>
-                                <button onClick={()=>{setPage('clients');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='clients'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="users"/> العملاء والطلبات</button>
-                                {user.role==='admin' && (
-                                    <>
-                                        <button onClick={()=>{setPage('reports');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="bar-chart-2"/> التقارير والأداء</button>
-                                        <button onClick={()=>{setPage('users');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='users'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="shield"/> الموظفين</button>
-                                        <button onClick={()=>{setPage('backup');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='backup'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="settings"/> الإعدادات والنسخ</button>
-                                    </>
-                                )}
-                            </nav>
-                            <div className="border-t pt-4 mt-auto">
-                                <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-full bg-brand-900 text-white flex items-center justify-center text-xs">{safeStr(user.name).charAt(0)}</div><div><div className="text-sm font-bold text-brand-900">{safeStr(user.name)}</div><div className="text-xs text-gray-500">{user.role==='admin'?'مسؤول':'موظف مبيعات'}</div></div></div>
-                                <button onClick={()=>signOut(auth)} className="text-red-500 text-sm flex items-center gap-2 font-bold"><Icon name="log-out" size={16}/> خروج</button>
+                <div className="flex h-screen bg-slate-50 overflow-hidden">
+                    {/* Sidebar */}
+                    <aside className="w-20 md:w-64 bg-brand-900 text-white flex flex-col z-20 transition-all">
+                        <div className="p-4 md:p-6 flex items-center gap-3 font-black text-xl border-b border-brand-800">
+                            <div className="text-accent-500"><Icon name="box" /></div>
+                            <span className="hidden md:block">بيوتكم</span>
+                        </div>
+                        
+                        <nav className="flex-1 p-2 space-y-2 mt-4">
+                            {/* App Switcher */}
+                            <div className="px-3 mb-2 text-xs text-gray-400 font-bold uppercase hidden md:block">التطبيقات</div>
+                            
+                            <button onClick={()=>setCurrentApp('crm')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${currentApp==='crm' ? 'bg-crm-600 text-white shadow-lg' : 'text-gray-400 hover:bg-brand-800 hover:text-white'}`}>
+                                <Icon name="layout-grid" />
+                                <span className="hidden md:block font-bold">إدارة العملاء (CRM)</span>
+                            </button>
+
+                            <button onClick={()=>setCurrentApp('attendance')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${currentApp==='attendance' ? 'bg-accent-600 text-white shadow-lg' : 'text-gray-400 hover:bg-brand-800 hover:text-white'}`}>
+                                <Icon name="clock" />
+                                <span className="hidden md:block font-bold">الحضور والانصراف</span>
+                            </button>
+                        </nav>
+
+                        <div className="p-4 border-t border-brand-800">
+                            <div className="flex items-center gap-3 mb-4 overflow-hidden">
+                                <div className="w-8 h-8 rounded-full bg-brand-800 flex-shrink-0 flex items-center justify-center text-xs">{safeStr(dbUser.name).charAt(0)}</div>
+                                <div className="hidden md:block overflow-hidden">
+                                    <div className="font-bold text-sm truncate">{dbUser.name}</div>
+                                    <div className="text-xs text-gray-400 truncate">{dbUser.role === 'admin' ? 'مسؤول' : 'موظف'}</div>
+                                </div>
                             </div>
+                            <button onClick={()=>signOut(auth)} className="w-full bg-red-500/10 text-red-400 p-2 rounded-lg hover:bg-red-500 hover:text-white transition flex items-center justify-center gap-2">
+                                <Icon name="log-out" size={16}/> <span className="hidden md:inline">خروج</span>
+                            </button>
                         </div>
                     </aside>
-                    
-                    <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                        {/* REPLACED HEADER WITH NEW NOTIFICATION HEADER */}
-                        <Header title={getPageTitle()} clients={clients} onToggleSidebar={()=>setSidebarOpen(true)} />
-                        
-                        <div className="flex-1 overflow-y-auto p-6">
-                            <div className="max-w-5xl mx-auto">
-                                <ErrorBoundary>
-                                    {page === 'dashboard' && <Dashboard clients={clients} currentUser={user} />}
-                                    {page === 'clients' && <ClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} onImport={handleImport} />}
-                                    {page === 'reports' && <Reports clients={clients} users={users} />}
-                                    {page === 'users' && <UsersList users={users} currentUser={user} />}
-                                    {page === 'backup' && <BackupSettings clients={clients} users={users} />}
-                                </ErrorBoundary>
-                            </div>
+
+                    {/* Main Content Area */}
+                    <main className="flex-1 overflow-y-auto relative bg-slate-50">
+                        {/* Mobile Header */}
+                        <header className="md:hidden bg-white p-4 shadow-sm flex justify-between items-center sticky top-0 z-10">
+                            <div className="font-bold text-brand-900">{currentApp === 'crm' ? 'لوحة الـ CRM' : 'الحضور والانصراف'}</div>
+                            <div className="w-8 h-8 bg-brand-900 rounded-full text-white flex items-center justify-center">{safeStr(dbUser.name).charAt(0)}</div>
+                        </header>
+
+                        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+                            {currentApp === 'crm' ? (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                                    {/* CRM Internal Nav */}
+                                    <div className="flex gap-4 border-b pb-4 mb-4 overflow-x-auto">
+                                        <button onClick={()=>setSubPage('dashboard')} className={`font-bold pb-2 ${subPage==='dashboard'?'text-brand-900 border-b-2 border-brand-900':'text-gray-400'}`}>لوحة التحكم</button>
+                                        <button onClick={()=>setSubPage('clients')} className={`font-bold pb-2 ${subPage==='clients'?'text-brand-900 border-b-2 border-brand-900':'text-gray-400'}`}>العملاء</button>
+                                    </div>
+
+                                    {subPage === 'dashboard' && <Dashboard clients={clients} />}
+                                    {subPage === 'clients' && <ClientList clients={clients} users={users} currentUser={dbUser} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} />}
+                                    
+                                    {modalOpen && <ClientModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} client={editClient} onSave={saveClient} users={users} currentUser={dbUser} />}
+                                </div>
+                            ) : (
+                                <div className="animate-in fade-in slide-in-from-bottom-4">
+                                    <AttendanceModule user={dbUser} zones={zones} usersList={users} logs={logs} />
+                                </div>
+                            )}
                         </div>
                     </main>
-
-                    {modalOpen && <ClientModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} client={editClient} onSave={saveClient} users={users} currentUser={user} />}
                 </div>
             );
         };
