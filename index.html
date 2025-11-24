@@ -391,7 +391,10 @@
 
         const CRMClientModal = ({ isOpen, onClose, client, onSave, users, currentUser }) => {
             const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '', history: [] }); 
-            const [newNote, setNewNote] = useState(''); const [notes, setNotes] = useState([]); const notesEndRef = useRef(null);
+            const [newNote, setNewNote] = useState(''); 
+            const [notes, setNotes] = useState([]); 
+            const notesEndRef = useRef(null);
+            const [activeTab, setActiveTab] = useState('notes'); // New state for tabs
             
             useEffect(() => { 
                 if(client) { 
@@ -437,12 +440,103 @@
 
             const canAssign = currentUser.role === 'admin' || currentUser.role === 'supervisor';
             
-            return ( <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"><div className="bg-white w-full max-w-3xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-4"><h3 className="font-bold text-lg">{client?'تعديل العميل':'إضافة عميل'}</h3><input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} /><input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} /><div><label className="text-xs font-bold block mb-2">المشاريع</label><div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div></div><select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select><input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} /><select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select><select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={!canAssign}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select><div><label className="text-xs font-bold block mb-1 text-amber-600">تاريخ المتابعة القادم</label><input type="date" className="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 date-en" value={d.nextFollowUp || ''} onChange={e=>setD({...d, nextFollowUp:e.target.value})} /></div>
-            
-            {/* History Section */}
-            {client && <div className="mt-4 border-t pt-2"><label className="text-xs font-bold block mb-2 text-gray-500">سجل الأحداث</label><div className="bg-gray-50 rounded-lg p-2 max-h-32 overflow-y-auto text-xs space-y-2">{safeArr(d.history).slice().reverse().map((h, i) => (<div key={i} className="flex justify-between border-b pb-1 last:border-0"><span className="font-bold text-gray-700">{h.action}</span><div className="text-gray-400"><span>{h.user}</span> <span className="date-en mx-1">{new Date(h.date).toLocaleDateString('en-GB')}</span></div></div>))}</div></div>}
+            return ( 
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-3xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        {/* Column 1: Client Details (Inputs) */}
+                        <div className="space-y-4">
+                            <h3 className="font-bold text-lg">{client?'تعديل العميل':'إضافة عميل'}</h3>
+                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} />
+                            <input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} />
+                            
+                            <div>
+                                <label className="text-xs font-bold block mb-2">المشاريع</label>
+                                <div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div>
+                            </div>
+                            
+                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} />
+                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
+                            <select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={!canAssign}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>
+                            
+                            <div>
+                                <label className="text-xs font-bold block mb-1 text-amber-600">تاريخ المتابعة القادم</label>
+                                <input type="date" className="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 date-en" value={d.nextFollowUp || ''} onChange={e=>setD({...d, nextFollowUp:e.target.value})} />
+                            </div>
+                            
+                        </div>
+                        
+                        {/* Column 2: Tabs (Notes & History) */}
+                        <div className="flex flex-col h-full">
+                            
+                            {/* Tab Header */}
+                            <div className="flex justify-between items-center mb-4 border-b">
+                                <div className="flex gap-4">
+                                    <button onClick={() => setActiveTab('notes')} className={`font-bold text-lg pb-2 transition ${activeTab === 'notes' ? 'text-brand-900 border-b-2 border-brand-900' : 'text-gray-500'}`}>
+                                        <Icon name="notebook-pen" size={18} className="inline-block ml-2"/> الملاحظات
+                                    </button>
+                                    <button onClick={() => setActiveTab('history')} className={`font-bold text-lg pb-2 transition ${activeTab === 'history' ? 'text-brand-900 border-b-2 border-brand-900' : 'text-gray-500'}`}>
+                                        <Icon name="history" size={18} className="inline-block ml-2"/> سجل الأحداث
+                                    </button>
+                                </div>
+                                <button onClick={onClose} className="md:hidden p-1"><Icon name="x"/></button>
+                            </div>
 
-            </div><div className="flex flex-col h-full"><div className="flex justify-between mb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon name="notebook-pen" size={18}/> الملاحظات</h3><button onClick={onClose} className="md:hidden"><Icon name="x"/></button></div><div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[400px] space-y-3">{notes.length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا توجد ملاحظات بعد</div>}{notes.map((n, i) => (<div key={i} className="bg-white p-3 rounded-lg border shadow-sm text-sm"><p className="text-gray-800 mb-2">{n.text}</p><div className="flex justify-between text-xs text-gray-400"><span>{n.author}</span><span className="date-en">{new Date(n.date).toLocaleDateString('en-GB')}</span></div></div>))}<div ref={notesEndRef} /></div><div className="flex gap-2 mb-6"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="اكتب ملاحظة..." value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyPress={e=>e.key==='Enter'&&handleAddNote()} /><button onClick={handleAddNote} className="bg-gray-200 hover:bg-gray-300 p-2 rounded-lg"><Icon name="send" size={16}/></button></div><div className="mt-auto flex gap-3"><button onClick={onClose} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200">إلغاء</button><button onClick={handleSaveInternal} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 shadow-lg">حفظ البيانات</button></div></div></div></div> );
+                            {/* Notes Tab Content */}
+                            {activeTab === 'notes' && (
+                                <div className="flex-1 flex flex-col min-h-0">
+                                    <div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[400px] space-y-3">
+                                        {notes.length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا توجد ملاحظات بعد</div>}
+                                        {notes.map((n, i) => (
+                                            <div key={i} className="bg-white p-3 rounded-lg border shadow-sm text-sm">
+                                                <p className="text-gray-800 mb-2">{n.text}</p>
+                                                <div className="flex justify-between text-xs text-gray-400">
+                                                    <span>{n.author}</span>
+                                                    <span className="date-en">{new Date(n.date).toLocaleDateString('en-GB')} {new Date(n.date).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div ref={notesEndRef} />
+                                    </div>
+                                    <div className="flex gap-2 mb-6">
+                                        <input className="flex-1 border rounded-lg p-2 text-sm" placeholder="اكتب ملاحظة..." value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyPress={e=>e.key==='Enter'&&handleAddNote()} />
+                                        <button onClick={handleAddNote} className="bg-gray-200 hover:bg-gray-300 p-2 rounded-lg"><Icon name="send" size={16}/></button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* History Tab Content */}
+                            {activeTab === 'history' && client && (
+                                <div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[400px]">
+                                    <div className="text-xs space-y-2">
+                                        {safeArr(d.history).slice().reverse().map((h, i) => (
+                                            <div key={i} className="flex justify-between items-start border-b pb-2 last:border-0 last:pb-0">
+                                                <span className="font-bold text-gray-700 w-3/5">{h.action}</span>
+                                                <div className="text-gray-500 text-left w-2/5">
+                                                    <div className='text-[11px]'>{h.user}</div>
+                                                    <div className="date-en text-[10px] text-gray-400">
+                                                        {new Date(h.date).toLocaleDateString('en-GB')} 
+                                                        <span className='mr-1'>{new Date(h.date).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {safeArr(d.history).length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا يوجد سجل أحداث لهذا العميل.</div>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action Buttons (fixed at the bottom) */}
+                            <div className="mt-auto flex gap-3">
+                                <button onClick={onClose} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200">إلغاء</button>
+                                <button onClick={handleSaveInternal} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 shadow-lg">حفظ البيانات</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            );
         };
         
         const CRMBackup = ({ clients, users, onImport }) => {
