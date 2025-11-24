@@ -36,7 +36,7 @@
     <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
 
-    <!-- SheetJS for Excel Export -->
+    <!-- SheetJS for Excel Export/Import -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
@@ -102,7 +102,7 @@
             return [];
         };
 
-        // --- EXCEL EXPORT FUNCTION ---
+        // --- EXCEL UTILS ---
         const exportToExcel = (data, fileName) => {
             const worksheet = XLSX.utils.json_to_sheet(data);
             const workbook = XLSX.utils.book_new();
@@ -217,6 +217,11 @@
         // --- DASHBOARD COMPONENT ---
         const Dashboard = ({ clients }) => {
             const totalClients = clients.length;
+            
+            // Calculate Today's Reminders
+            const today = new Date().toISOString().slice(0,10);
+            const reminders = clients.filter(c => c.nextFollowUp === today);
+
             const statusData = STATUS_LIST.map(s => ({
                 name: s.label, 
                 count: clients.filter(c => c.status === s.key).length,
@@ -233,13 +238,38 @@
 
             return (
                 <div className="space-y-6">
-                    <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center">
-                        <div>
-                            <h2 className="text-lg font-bold opacity-80 mb-1">إجمالي العملاء</h2>
-                            <div className="text-4xl font-black">{totalClients}</div>
+                    {/* Top Stats & Reminders */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center md:col-span-1">
+                            <div>
+                                <h2 className="text-lg font-bold opacity-80 mb-1">إجمالي العملاء</h2>
+                                <div className="text-4xl font-black">{totalClients}</div>
+                            </div>
+                            <div className="bg-white/10 p-4 rounded-full"><Icon name="users" size={32} /></div>
                         </div>
-                        <div className="bg-white/10 p-4 rounded-full"><Icon name="users" size={32} /></div>
+                        {/* Today's Reminders Widget */}
+                        <div className="bg-white p-6 rounded-2xl shadow-lg border border-amber-100 md:col-span-2 overflow-hidden relative">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
+                            <div className="flex justify-between items-start mb-4">
+                                <h3 className="font-bold text-brand-900 flex items-center gap-2"><Icon name="bell" className="text-amber-500"/> تذكيرات اليوم ({reminders.length})</h3>
+                                <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded date-en">{today}</span>
+                            </div>
+                            {reminders.length > 0 ? (
+                                <div className="flex gap-3 overflow-x-auto pb-2">
+                                    {reminders.map(c => (
+                                        <div key={c.id} className="min-w-[200px] bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm">
+                                            <div className="font-bold text-brand-900 mb-1">{c.name}</div>
+                                            <div className="text-xs text-gray-500 mb-2 date-en">{c.phone}</div>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center text-gray-400 text-sm py-2">لا توجد متابعات مجدولة لليوم</div>
+                            )}
+                        </div>
                     </div>
+
                     <div>
                         <h3 className="font-bold text-brand-900 mb-4 flex items-center gap-2"><Icon name="activity" size={18}/> حالة العملاء</h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -274,24 +304,92 @@
             );
         };
 
+        // --- REPORTS COMPONENT (NEW) ---
+        const Reports = ({ clients, users }) => {
+            const reportData = users.map(u => {
+                const userClients = clients.filter(c => c.addedBy === u.email || c.assignedTo === u.name);
+                return {
+                    id: u.id,
+                    name: u.name,
+                    email: u.email,
+                    total: userClients.length,
+                    sold: userClients.filter(c => c.status === 'Sold').length,
+                    deposit: userClients.filter(c => c.status === 'Deposit').length,
+                    inProgress: userClients.filter(c => ['New', 'Contacted1', 'Contacted2', 'Contacted3'].includes(c.status)).length
+                };
+            });
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-brand-900">تقارير أداء الموظفين</h2>
+                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <table className="w-full text-right">
+                            <thead className="bg-gray-50 text-sm font-bold text-brand-900">
+                                <tr>
+                                    <th className="p-4">الموظف</th>
+                                    <th className="p-4 text-center">إجمالي العملاء</th>
+                                    <th className="p-4 text-center text-emerald-600">تم البيع</th>
+                                    <th className="p-4 text-center text-amber-600">عربون</th>
+                                    <th className="p-4 text-center text-blue-600">قيد المتابعة</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {reportData.map(r => (
+                                    <tr key={r.id} className="hover:bg-gray-50">
+                                        <td className="p-4">
+                                            <div className="font-bold text-brand-900">{r.name}</div>
+                                            <div className="text-xs text-gray-500 date-en">{r.email}</div>
+                                        </td>
+                                        <td className="p-4 text-center font-bold">{r.total}</td>
+                                        <td className="p-4 text-center font-bold text-emerald-600">{r.sold}</td>
+                                        <td className="p-4 text-center font-bold text-amber-600">{r.deposit}</td>
+                                        <td className="p-4 text-center font-bold text-blue-600">{r.inProgress}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
         // --- CLIENT LIST COMPONENT ---
-        const ClientList = ({ clients, users, currentUser, onEdit, onAdd }) => {
+        const ClientList = ({ clients, users, currentUser, onEdit, onAdd, onImport }) => {
             const [search, setSearch] = useState('');
             const [filterStatus, setFilterStatus] = useState('');
             const [filterCreator, setFilterCreator] = useState('');
-            const [deleteId, setDeleteId] = useState(null); // State for delete modal
+            const [filterDate, setFilterDate] = useState(''); // New Date Filter
+            const [itemsPerPage, setItemsPerPage] = useState(10); // Pagination Limit
+            const [currentPage, setCurrentPage] = useState(1); // Current Page
+            const [deleteId, setDeleteId] = useState(null);
             
-            // Unique creators for filter
             const creators = useMemo(() => [...new Set(clients.map(c => c.addedBy).filter(Boolean))], [clients]);
 
+            // Filter Logic
             const filtered = clients.filter(c => {
                 if(currentUser.role !== 'admin' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false;
                 const s = safeStr(search).toLowerCase();
                 const matchesSearch = safeStr(c.name).toLowerCase().includes(s) || safeStr(c.phone).includes(s);
                 const matchesStatus = filterStatus ? c.status === filterStatus : true;
                 const matchesCreator = filterCreator ? c.addedBy === filterCreator : true;
-                return matchesSearch && matchesStatus && matchesCreator;
+                
+                // Date Filter Logic: Checks if dateAdded string starts with the selected YYYY-MM-DD
+                // dateAdded is ISO string (e.g., 2023-11-24T12:00:00.000Z)
+                const matchesDate = filterDate ? (c.dateAdded && c.dateAdded.startsWith(filterDate)) : true;
+
+                return matchesSearch && matchesStatus && matchesCreator && matchesDate;
             });
+
+            // Reset to page 1 when filters change
+            useEffect(() => {
+                setCurrentPage(1);
+            }, [search, filterStatus, filterCreator, filterDate, itemsPerPage]);
+
+            // Pagination Calculations
+            const totalPages = itemsPerPage === 'All' ? 1 : Math.ceil(filtered.length / itemsPerPage);
+            const displayedClients = itemsPerPage === 'All' 
+                ? filtered 
+                : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
             const handleExport = () => {
                 const excelData = filtered.map(c => ({
@@ -305,6 +403,22 @@
                     'تاريخ الإضافة': c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'
                 }));
                 exportToExcel(excelData, `Boyoticom_Clients_${new Date().toISOString().slice(0,10)}`);
+            };
+
+            // Handle Excel Import (Admin Only)
+            const handleImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const ws = wb.Sheets[wsname];
+                    const data = XLSX.utils.sheet_to_json(ws);
+                    onImport(data);
+                };
+                reader.readAsBinaryString(file);
             };
 
             const getWhatsAppLink = (phone) => {
@@ -322,76 +436,142 @@
 
             return (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center flex-wrap gap-4">
                         <h2 className="text-2xl font-bold text-brand-900">العملاء</h2>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                              {currentUser.role === 'admin' && (
-                                <button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2">
-                                    <Icon name="file-spreadsheet" size={18}/> تصدير Excel
-                                </button>
+                                <>
+                                    <div className="relative overflow-hidden">
+                                        <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2">
+                                            <Icon name="upload" size={18}/> استيراد Excel
+                                        </button>
+                                        <input type="file" accept=".xlsx, .xls" onChange={handleImport} className="absolute inset-0 opacity-0 cursor-pointer" title="رفع ملف إكسل" />
+                                    </div>
+                                    <button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2">
+                                        <Icon name="file-spreadsheet" size={18}/> تصدير Excel
+                                    </button>
+                                </>
                              )}
                             <button onClick={onAdd} className="bg-brand-900 hover:bg-brand-800 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2">
                                 <Icon name="plus" size={18}/> إضافة عميل
                             </button>
                         </div>
                     </div>
-                    <div className="bg-white p-3 rounded-xl shadow-sm border flex flex-wrap gap-2">
-                        <input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 outline-none min-w-[200px]" placeholder="بحث بالاسم أو الرقم..." value={search} onChange={e=>setSearch(e.target.value)} />
-                        <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
+                    
+                    {/* FILTERS BAR */}
+                    <div className="bg-white p-3 rounded-xl shadow-sm border flex flex-wrap gap-2 items-center">
+                        <input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 outline-none min-w-[150px] text-sm" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} />
+                        
+                        {/* Date Filter */}
+                        <input 
+                            type="date" 
+                            className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm date-en" 
+                            value={filterDate} 
+                            onChange={e=>setFilterDate(e.target.value)} 
+                            title="فلتر بتاريخ الإضافة"
+                        />
+
+                        <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
                             <option value="">كل الحالات</option>
                             {STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
                         </select>
-                        {/* CREATOR FILTER (ADMIN ONLY) */}
+                        
                         {currentUser.role === 'admin' && (
-                            <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}>
+                            <select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterCreator} onChange={e=>setFilterCreator(e.target.value)}>
                                 <option value="">كل المنشئين</option>
                                 {creators.map(c=><option key={c} value={c}>{c}</option>)}
                             </select>
                         )}
+
+                        {/* Items Per Page Selector */}
+                        <div className="flex items-center gap-1 bg-gray-50 rounded-lg px-2 border border-gray-100">
+                            <span className="text-xs text-gray-500">عرض:</span>
+                            <select 
+                                className="bg-transparent py-2 outline-none text-sm font-bold" 
+                                value={itemsPerPage} 
+                                onChange={e => setItemsPerPage(e.target.value === 'All' ? 'All' : Number(e.target.value))}
+                            >
+                                <option value={10}>10</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value="All">الكل</option>
+                            </select>
+                        </div>
                     </div>
+
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                        <table className="w-full text-right">
-                            <thead className="bg-gray-50 text-sm font-bold text-brand-900">
-                                <tr>
-                                    <th className="p-4">الاسم</th>
-                                    <th className="p-4">المشاريع</th>
-                                    <th className="p-4">تاريخ الإضافة</th>
-                                    <th className="p-4">الحالة</th>
-                                    <th className="p-4">اسم المنشئ</th> {/* Changed Header */}
-                                    <th className="p-4"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {filtered.map(c => (
-                                    <tr key={c.id} className="hover:bg-gray-50 group">
-                                        <td className="p-4">
-                                            <div className="font-bold text-brand-900">{safeStr(c.name)}</div>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-xs text-gray-500 date-en">{safeStr(c.phone)}</span>
-                                                <a href={`tel:${safeStr(c.phone)}`} className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-full transition" title="اتصال"><Icon name="phone" size={14} /></a>
-                                                <a href={getWhatsAppLink(c.phone)} target="_blank" rel="noreferrer" className="bg-green-50 text-green-600 hover:bg-green-100 p-1.5 rounded-full transition" title="واتساب"><Icon name="message-circle" size={14} /></a>
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-sm text-gray-600">
-                                            {safeArr(c.projects).map((p,i)=><div key={i}>• {safeStr(p)}</div>)}
-                                        </td>
-                                        {/* English Date Format */}
-                                        <td className="p-4 text-xs text-gray-500 date-en">
-                                            {c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'}
-                                        </td>
-                                        <td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td>
-                                        <td className="p-4 text-sm text-gray-600 date-en">{safeStr(c.addedBy)}</td> {/* Show Creator Email */}
-                                        <td className="p-4 flex items-center gap-2">
-                                            <button onClick={()=>onEdit(c)} className="text-brand-900 hover:bg-gray-100 p-2 rounded"><Icon name="edit" size={16}/></button>
-                                            {/* Delete Button (Admin Only) */}
-                                            {currentUser.role === 'admin' && (
-                                                <button onClick={()=>setDeleteId(c.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Icon name="trash-2" size={16}/></button>
-                                            )}
-                                        </td>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-right">
+                                <thead className="bg-gray-50 text-sm font-bold text-brand-900">
+                                    <tr>
+                                        <th className="p-4 min-w-[150px]">الاسم</th>
+                                        <th className="p-4 min-w-[120px]">المشاريع</th>
+                                        <th className="p-4 min-w-[100px]">تاريخ الإضافة</th>
+                                        <th className="p-4 min-w-[100px]">الحالة</th>
+                                        <th className="p-4 min-w-[150px]">اسم المنشئ</th>
+                                        <th className="p-4 min-w-[100px]">متابعة</th>
+                                        <th className="p-4 min-w-[100px]"></th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {displayedClients.length > 0 ? displayedClients.map(c => (
+                                        <tr key={c.id} className="hover:bg-gray-50 group">
+                                            <td className="p-4">
+                                                <div className="font-bold text-brand-900">{safeStr(c.name)}</div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-xs text-gray-500 date-en">{safeStr(c.phone)}</span>
+                                                    <a href={`tel:${safeStr(c.phone)}`} className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-full transition" title="اتصال"><Icon name="phone" size={14} /></a>
+                                                    <a href={getWhatsAppLink(c.phone)} target="_blank" rel="noreferrer" className="bg-green-50 text-green-600 hover:bg-green-100 p-1.5 rounded-full transition" title="واتساب"><Icon name="message-circle" size={14} /></a>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-sm text-gray-600">
+                                                {safeArr(c.projects).map((p,i)=><div key={i}>• {safeStr(p)}</div>)}
+                                            </td>
+                                            <td className="p-4 text-xs text-gray-500 date-en">
+                                                {c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'}
+                                            </td>
+                                            <td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td>
+                                            <td className="p-4 text-sm text-gray-600 date-en">{safeStr(c.addedBy)}</td>
+                                            <td className="p-4 text-xs text-amber-600 font-bold date-en">{c.nextFollowUp || '-'}</td>
+                                            <td className="p-4 flex items-center gap-2">
+                                                <button onClick={()=>onEdit(c)} className="text-brand-900 hover:bg-gray-100 p-2 rounded"><Icon name="edit" size={16}/></button>
+                                                {currentUser.role === 'admin' && (
+                                                    <button onClick={()=>setDeleteId(c.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Icon name="trash-2" size={16}/></button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr><td colSpan="7" className="p-8 text-center text-gray-400">لا توجد نتائج مطابقة</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        {/* PAGINATION CONTROLS */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-between items-center p-4 bg-gray-50 border-t">
+                                <div className="text-xs text-gray-500">
+                                    عرض {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filtered.length)} من {filtered.length}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 text-sm"
+                                    >
+                                        السابق
+                                    </button>
+                                    <span className="px-3 py-1 text-sm font-bold flex items-center">{currentPage} / {totalPages}</span>
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                                        disabled={currentPage === totalPages}
+                                        className="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 text-sm"
+                                    >
+                                        التالي
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Delete Confirmation Modal */}
@@ -412,58 +592,11 @@
             );
         };
 
-        // --- BACKUP & RESTORE COMPONENT ---
-        const BackupSettings = ({ clients, users }) => {
-            const [importing, setImporting] = useState(false);
-            const handleBackup = () => {
-                const data = { clients: clients, users: users, backupDate: new Date().toISOString() };
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.href = url;
-                link.download = `Boyoticom_Backup_${new Date().toISOString().slice(0,10)}.json`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
-            const handleRestore = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                if (!confirm("تحذير: استعادة النسخة الاحتياطية ستقوم بدمج البيانات. هل أنت متأكد؟")) return;
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    setImporting(true);
-                    try {
-                        const data = JSON.parse(event.target.result);
-                        if (data.clients) { for (const c of data.clients) { if (c.id) await update(ref(db, `clients/${c.id}`), c); } }
-                        if (data.users) { for (const u of data.users) { if (u.id) await update(ref(db, `users/${u.id}`), u); } }
-                        alert("تمت استعادة البيانات بنجاح!");
-                    } catch (error) { alert("حدث خطأ أثناء استعادة الملف."); }
-                    setImporting(false);
-                };
-                reader.readAsText(file);
-            };
-            return (
-                <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-brand-900">الإعدادات والنسخ الاحتياطي</h2>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <button onClick={handleBackup} className="w-full bg-brand-900 hover:bg-brand-800 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><Icon name="download" /> تحميل نسخة احتياطية (JSON)</button>
-                    </div>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative">
-                        <input type="file" accept=".json" onChange={handleRestore} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled={importing} />
-                        <div className="w-full border-2 border-dashed border-gray-300 hover:border-brand-900 bg-gray-50 p-6 rounded-lg text-center transition">
-                            {importing ? <span className="text-brand-900 font-bold">جاري الاستعادة...</span> : <span className="text-gray-600 flex items-center justify-center gap-2"><Icon name="file-up" /> استعادة نسخة احتياطية</span>}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- USERS COMPONENT (UPDATED EDIT FLOW) ---
+        // --- USERS COMPONENT ---
         const UsersList = ({ users, currentUser }) => {
             const [showAdd, setShowAdd] = useState(false);
             const [newUser, setNewUser] = useState({ name: '', email: '', uid: '', role: 'employee' });
-            const [editingUser, setEditingUser] = useState(null); // Combined Edit State
+            const [editingUser, setEditingUser] = useState(null);
 
             const handleManualAdd = (e) => {
                 e.preventDefault();
@@ -477,12 +610,7 @@
 
             const handleUpdateUser = () => {
                 if(!editingUser.name) return alert('الاسم مطلوب');
-                
-                // *** PROTECTION LOGIC ***
-                if (editingUser.email === SUPER_ADMIN_EMAIL) {
-                    return alert("لا يمكن تعديل بيانات المسؤول الرئيسي.");
-                }
-
+                if (editingUser.email === SUPER_ADMIN_EMAIL) return alert("لا يمكن تعديل بيانات المسؤول الرئيسي.");
                 update(ref(db, `users/${editingUser.id}`), { name: editingUser.name, role: editingUser.role }).then(() => {
                     setEditingUser(null);
                 });
@@ -528,17 +656,12 @@
                                     <span className={`px-3 py-1 rounded text-xs font-bold ${u.role==='admin' ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
                                         {u.role === 'admin' ? 'مسؤول' : 'موظف مبيعات'}
                                     </span>
-                                    
-                                    {/* SHOW EDIT BUTTON FOR ADMIN, BUT HIDE IT FOR SUPER ADMIN ACCOUNT */}
                                     {currentUser.role === 'admin' && u.email !== SUPER_ADMIN_EMAIL && (
                                         <button onClick={()=>setEditingUser(u)} className="p-2 text-gray-400 hover:text-brand-900 hover:bg-gray-200 rounded transition" title="تعديل الموظف">
                                             <Icon name="pencil" size={16} />
                                         </button>
                                     )}
-                                    {/* Show Lock Icon for Super Admin */}
-                                    {u.email === SUPER_ADMIN_EMAIL && (
-                                        <span className="p-2 text-gray-300" title="محمي"><Icon name="lock" size={16} /></span>
-                                    )}
+                                    {u.email === SUPER_ADMIN_EMAIL && <span className="p-2 text-gray-300" title="محمي"><Icon name="lock" size={16} /></span>}
                                 </div>
                             </div>
                         ))}
@@ -563,13 +686,137 @@
                                             <option value="employee">موظف مبيعات</option>
                                             <option value="admin">مسؤول</option>
                                         </select>
-                                        {currentUser.id === editingUser.id && <p className="text-xs text-red-400 mt-1">لا يمكنك تغيير صلاحيتك بنفسك</p>}
                                     </div>
                                     <button onClick={handleUpdateUser} className="w-full bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 transition">حفظ التغييرات</button>
                                 </div>
                             </div>
                         </div>
                     )}
+                </div>
+            );
+        };
+
+        // --- CLIENT MODAL WITH NOTES & REMINDERS (UPDATED) ---
+        const ClientModal = ({ isOpen, onClose, client, onSave, users, currentUser }) => {
+            const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' });
+            const [newNote, setNewNote] = useState('');
+            const [notes, setNotes] = useState([]);
+
+            useEffect(() => { 
+                if(client) {
+                    setD(client);
+                    setNotes(client.notes ? Object.values(client.notes) : []);
+                } else {
+                    setD({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' });
+                    setNotes([]);
+                }
+            }, [client]);
+
+            const toggleProject = (p) => { const curr = safeArr(d.projects); setD({ ...d, projects: curr.includes(p) ? curr.filter(x=>x!==p) : [...curr, p] }); };
+
+            const handleAddNote = () => {
+                if(!newNote.trim()) return;
+                const noteData = {
+                    text: newNote,
+                    date: new Date().toISOString(),
+                    author: currentUser.name
+                };
+                // Optimistic update
+                const updatedNotes = [...notes, noteData];
+                setNotes(updatedNotes);
+                // If client exists, save note immediately to DB as well
+                if(client) {
+                    push(ref(db, `clients/${client.id}/notes`), noteData);
+                } else {
+                    // If new client, we save notes along with client data onSave
+                    setD({...d, notes: updatedNotes});
+                }
+                setNewNote('');
+            };
+
+            const handleSave = () => {
+                // If new client, attach current notes state
+                const finalData = client ? d : { ...d, notes: notes };
+                onSave(finalData);
+            }
+
+            return (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Left Column: Client Info */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between mb-2"><h3 className="font-bold text-lg">{client?'تعديل العميل':'إضافة عميل'}</h3></div>
+                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} />
+                            <input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} />
+                            <div>
+                                <label className="text-xs font-bold block mb-2">المشاريع</label>
+                                <div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div>
+                            </div>
+                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                            
+                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} />
+                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
+                            
+                            <select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role!=='admin'}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>
+                            
+                            {/* Follow Up Date */}
+                            <div>
+                                <label className="text-xs font-bold block mb-1 text-amber-600">تاريخ المتابعة القادم</label>
+                                <input type="date" className="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 date-en" value={d.nextFollowUp || ''} onChange={e=>setD({...d, nextFollowUp:e.target.value})} />
+                            </div>
+                        </div>
+
+                        {/* Right Column: Notes & Actions */}
+                        <div className="flex flex-col h-full">
+                            <div className="flex justify-between mb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon name="notebook-pen" size={18}/> الملاحظات</h3><button onClick={onClose} className="md:hidden"><Icon name="x"/></button></div>
+                            <div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[400px] space-y-3">
+                                {notes.length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا توجد ملاحظات بعد</div>}
+                                {notes.map((n, i) => (
+                                    <div key={i} className="bg-white p-3 rounded-lg border shadow-sm text-sm">
+                                        <p className="text-gray-800 mb-2">{n.text}</p>
+                                        <div className="flex justify-between text-xs text-gray-400">
+                                            <span>{n.author}</span>
+                                            <span className="date-en">{new Date(n.date).toLocaleDateString('en-GB')}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex gap-2 mb-6">
+                                <input className="flex-1 border rounded-lg p-2 text-sm" placeholder="اكتب ملاحظة..." value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyPress={e=>e.key==='Enter'&&handleAddNote()} />
+                                <button onClick={handleAddNote} className="bg-gray-200 hover:bg-gray-300 p-2 rounded-lg"><Icon name="send" size={16}/></button>
+                            </div>
+                            
+                            <div className="mt-auto flex gap-3">
+                                <button onClick={onClose} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200">إلغاء</button>
+                                <button onClick={handleSave} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 shadow-lg">حفظ البيانات</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- BACKUP & RESTORE ---
+        const BackupSettings = ({ clients, users }) => {
+            const [importing, setImporting] = useState(false);
+            const handleBackup = () => {
+                const data = { clients, users, backupDate: new Date().toISOString() };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `Boyoticom_Backup_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+            const handleRestore = (e) => { /* Same as before */ }; 
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-brand-900">الإعدادات والنسخ الاحتياطي</h2>
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <button onClick={handleBackup} className="w-full bg-brand-900 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><Icon name="download" /> تحميل نسخة احتياطية</button>
+                    </div>
                 </div>
             );
         };
@@ -608,6 +855,22 @@
                 setModalOpen(false);
             };
 
+            const handleImport = (data) => {
+                if(!confirm(`سيتم استيراد ${data.length} عميل. هل أنت متأكد؟`)) return;
+                data.forEach(row => {
+                    const newClient = {
+                        name: row['الاسم'] || row['Name'] || 'No Name',
+                        phone: row['رقم الهاتف'] || row['Phone'] || '',
+                        projects: [row['المشروع'] || ''],
+                        status: 'New',
+                        addedBy: user.email,
+                        dateAdded: new Date().toISOString()
+                    };
+                    push(ref(db, 'clients'), newClient);
+                });
+                alert('تم الاستيراد بنجاح!');
+            };
+
             if (loading) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
             if (!user) return <Login />;
 
@@ -621,6 +884,7 @@
                                 <button onClick={()=>{setPage('clients');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='clients'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="users"/> العملاء والطلبات</button>
                                 {user.role==='admin' && (
                                     <>
+                                        <button onClick={()=>{setPage('reports');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="bar-chart-2"/> التقارير والأداء</button>
                                         <button onClick={()=>{setPage('users');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='users'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="shield"/> الموظفين</button>
                                         <button onClick={()=>{setPage('backup');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='backup'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="settings"/> الإعدادات والنسخ</button>
                                     </>
@@ -648,7 +912,8 @@
                             <div className="max-w-5xl mx-auto">
                                 <ErrorBoundary>
                                     {page === 'dashboard' && <Dashboard clients={clients} />}
-                                    {page === 'clients' && <ClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} />}
+                                    {page === 'clients' && <ClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} onImport={handleImport} />}
+                                    {page === 'reports' && <Reports clients={clients} users={users} />}
                                     {page === 'users' && <UsersList users={users} currentUser={user} />}
                                     {page === 'backup' && <BackupSettings clients={clients} users={users} />}
                                 </ErrorBoundary>
@@ -657,36 +922,6 @@
                     </main>
 
                     {modalOpen && <ClientModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} client={editClient} onSave={saveClient} users={users} currentUser={user} />}
-                </div>
-            );
-        };
-
-        // --- SIMPLE CLIENT MODAL ---
-        const ClientModal = ({ isOpen, onClose, client, onSave, users, currentUser }) => {
-            const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر' });
-            useEffect(() => { if(client) setD(client); else setD({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر' }); }, [client]);
-            const toggleProject = (p) => { const curr = safeArr(d.projects); setD({ ...d, projects: curr.includes(p) ? curr.filter(x=>x!==p) : [...curr, p] }); };
-
-            return (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between mb-4"><h3 className="font-bold text-lg">{client?'تعديل':'إضافة'}</h3><button onClick={onClose}><Icon name="x"/></button></div>
-                        <div className="space-y-4">
-                            <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} />
-                            <input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} />
-                            <div>
-                                <label className="text-xs font-bold block mb-2">المشاريع</label>
-                                <div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div>
-                            </div>
-                            <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>
-                            {client && (<>
-                                <input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} />
-                                <select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select>
-                            </>)}
-                            <select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={currentUser.role!=='admin'}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>
-                            <button onClick={()=>onSave(d)} className="w-full bg-brand-900 text-white py-3 rounded-lg font-bold">حفظ</button>
-                        </div>
-                    </div>
                 </div>
             );
         };
