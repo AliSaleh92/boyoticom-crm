@@ -23,17 +23,16 @@
       }
     </script>
     
-    <!-- Fonts -->
+    <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Libraries -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
-    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -42,10 +41,6 @@
       .date-en { font-family: sans-serif; direction: ltr; display: inline-block; }
       .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #2C3340; width: 24px; height: 24px; animation: spin 1s linear infinite; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      .leaflet-container { width: 100%; height: 100%; z-index: 1; border-radius: 0.75rem; }
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: #f1f1f1; }
-      ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
       .portal-card { transition: all 0.3s ease; }
       .portal-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
     </style>
@@ -83,7 +78,7 @@
             static getDerivedStateFromError(error) { return { hasError: true }; }
             componentDidCatch(error, errorInfo) { console.error("Error:", error, errorInfo); }
             render() {
-                if (this.state.hasError) return <div className="p-4 text-red-600 bg-red-50 rounded">حدث خطأ. يرجى تحديث الصفحة.</div>;
+                if (this.state.hasError) return <div className="p-6 text-center"><h3 className="text-red-600 font-bold">حدث خطأ غير متوقع</h3><button onClick={()=>window.location.reload()} className="mt-2 bg-gray-200 px-4 py-2 rounded">تحديث الصفحة</button></div>;
                 return this.props.children;
             }
         }
@@ -97,224 +92,164 @@
         const safeArr = (val) => Array.isArray(val) ? val : [];
         const formatTime = (isoString) => new Date(isoString).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
         const formatDate = (isoString) => new Date(isoString).toLocaleDateString('en-GB');
-        
-        const Logo = ({ size = 40 }) => {
-            const [imgError, setImgError] = useState(false);
-            if (imgError) { return (<div className="bg-brand-900 rounded-xl flex items-center justify-center text-accent-500" style={{ width: size, height: size }}><Icon name="box" size={size * 0.6} /></div>); }
-            return (<img src="/logo.png" alt="شعار" className="object-contain" style={{ width: size, height: size }} onError={() => setImgError(true)} />);
-        };
-
+        const Logo = ({ size = 40 }) => (<div className="bg-brand-900 rounded-xl flex items-center justify-center text-accent-500" style={{ width: size, height: size }}><Icon name="box" size={size * 0.6} /></div>);
         const exportToExcel = (data, fileName) => { const worksheet = XLSX.utils.json_to_sheet(data); const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1"); XLSX.writeFile(workbook, `${fileName}.xlsx`); };
 
         // --- CONSTANTS ---
         const STATUS_LIST = [ { key: 'New', label: 'عميل جديد', color: 'bg-blue-50 text-blue-700 border-blue-200' }, { key: 'Contacted1', label: 'تم التواصل 1', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' }, { key: 'Contacted2', label: 'تم التواصل 2', color: 'bg-purple-50 text-purple-700 border-purple-200' }, { key: 'Contacted3', label: 'تم التواصل 3', color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' }, { key: 'Deposit', label: 'دفع عربون', color: 'bg-amber-50 text-amber-700 border-amber-200' }, { key: 'Sold', label: 'تم البيع', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }, { key: 'Cancelled', label: 'ملغي', color: 'bg-red-50 text-red-700 border-red-200' }, ];
         const PROJECT_LIST = ["بيوتكم 10", "بيوتكم 11", "بيوتكم 12", "بيوتكم 13", "بيوتكم 14"];
         const CLIENT_SOURCES = ["مباشر", "عقار", "اعلانات رقمية", "توصية صديق"];
-        const SUPER_ADMIN_EMAIL = "asaleh@boyoticom.com";
 
         // --- 1. LOGIN COMPONENT ---
         const Login = () => {
             const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
             const handleLogin = async (e) => { e.preventDefault(); setLoading(true); setError(''); try { await signInWithEmailAndPassword(auth, email, password); } catch (err) { setError('البريد أو كلمة المرور غير صحيحة'); setLoading(false); } };
+            return ( <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4"><div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md text-center"><div className="mx-auto flex items-center justify-center mb-6"><Logo size={80} /></div><h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم ERP</h1><p className="text-gray-500 mb-8">بوابة الموظفين الموحدة</p>{error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">{error}</div>}<form onSubmit={handleLogin} className="space-y-4"><input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="email" required placeholder="البريد الإلكتروني" value={email} onChange={e=>setEmail(e.target.value)} /><input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="password" required placeholder="كلمة المرور" value={password} onChange={e=>setPassword(e.target.value)} /><button disabled={loading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg disabled:opacity-70">{loading ? 'جاري الدخول...' : 'تسجيل الدخول'}</button></form></div></div> );
+        };
+
+        // --- 2. USER MANAGEMENT COMPONENTS ---
+
+        // Screen 1: Add User Data
+        const AddUserForm = ({ onNext, onCancel }) => {
+            const [userData, setUserData] = useState({ name: '', email: '', uid: '' });
             return (
-                <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4">
-                    <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md text-center">
-                        <div className="mx-auto flex items-center justify-center mb-6"><Logo size={80} /></div>
-                        <h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم ERP</h1>
-                        <p className="text-gray-500 mb-8">بوابة الموظفين الموحدة</p>
-                        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">{error}</div>}
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="email" required placeholder="البريد الإلكتروني" value={email} onChange={e=>setEmail(e.target.value)} />
-                            <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="password" required placeholder="كلمة المرور" value={password} onChange={e=>setPassword(e.target.value)} />
-                            <button disabled={loading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg disabled:opacity-70">{loading ? 'جاري الدخول...' : 'تسجيل الدخول'}</button>
-                        </form>
+                <div className="animate-in fade-in space-y-4">
+                    <div className="bg-yellow-50 p-3 rounded-lg text-xs text-yellow-800"><strong>تنبيه:</strong> انسخ الـ UID من لوحة Firebase Authentication.</div>
+                    <input className="w-full border rounded-lg p-3" placeholder="الاسم الثلاثي" value={userData.name} onChange={e=>setUserData({...userData, name:e.target.value})} />
+                    <input className="w-full border rounded-lg p-3 text-right date-en" placeholder="البريد الإلكتروني" value={userData.email} onChange={e=>setUserData({...userData, email:e.target.value})} />
+                    <input className="w-full border rounded-lg p-3 text-right date-en font-mono" placeholder="UID" value={userData.uid} onChange={e=>setUserData({...userData, uid:e.target.value})} />
+                    <div className="flex gap-2 pt-2">
+                        <button onClick={onCancel} className="flex-1 bg-gray-100 py-3 rounded-xl font-bold">إلغاء</button>
+                        <button onClick={()=>onNext(userData)} className="flex-1 bg-brand-900 text-white py-3 rounded-xl font-bold">التالي: الصلاحيات</button>
                     </div>
                 </div>
             );
         };
 
-        // --- 2. ROLE EDITOR COMPONENT (THE SMART ONE) ---
-        const RoleEditor = ({ user, onSave, onCancel }) => {
-            const [role, setRole] = useState(user.role || 'employee');
-            const p = user.permissions || {};
-            
-            const [perms, setPerms] = useState({
-                crm_access: p.crm_access ?? false,
-                crm_reports: p.crm_reports ?? false,
-                crm_delete: p.crm_delete ?? false,
-                crm_export: p.crm_export ?? false,
-                att_access: p.att_access ?? false,
-                att_reports: p.att_reports ?? false,
-                att_zones: p.att_zones ?? false
-            });
+        // Screen 2: Set Permissions (Smart Role Selection)
+        const RoleSelector = ({ userData, onSave, onBack }) => {
+            const [role, setRole] = useState('employee'); // Default
 
-            // The Magic: Set presets based on role click
-            const handleRoleChange = (newRole) => {
-                setRole(newRole);
-                if (newRole === 'supervisor') {
-                    setPerms({
-                        crm_access: true,
-                        crm_reports: true,
-                        crm_delete: true,
-                        crm_export: false, // Supervisors don't export
-                        att_access: true,
-                        att_reports: true,
-                        att_zones: true
-                    });
-                } else {
-                    // Employee Defaults
-                    setPerms({
-                        crm_access: true,
-                        crm_reports: false,
-                        crm_delete: false,
-                        crm_export: false,
-                        att_access: true,
-                        att_reports: false,
-                        att_zones: false
-                    });
-                }
-            };
-
-            const toggle = (key) => setPerms(prev => ({...prev, [key]: !prev[key]}));
-
+            // This function saves the user with PRESET permissions based on the selected role
             const handleSave = () => {
-                const apps = []; 
-                if(perms.crm_access) apps.push('crm'); 
-                if(perms.att_access) apps.push('attendance');
-                onSave(user.id, role, apps, perms);
+                let perms = {};
+                
+                if (role === 'supervisor') {
+                    // SUPERVISOR: Full View, Edit, Delete, Reports. NO Export.
+                    perms = {
+                        crm_access: true, crm_reports: true, crm_delete: true, crm_export: false, crm_role: 'supervisor',
+                        att_access: true, att_reports: true, att_zones: true, att_role: 'supervisor'
+                    };
+                } else {
+                    // EMPLOYEE: Assigned View Only, Add/Edit. NO Delete, NO Reports, NO Export.
+                    perms = {
+                        crm_access: true, crm_reports: false, crm_delete: false, crm_export: false, crm_role: 'employee',
+                        att_access: true, att_reports: false, att_zones: false, att_role: 'employee'
+                    };
+                }
+
+                const allowedApps = ['crm', 'attendance']; // Both usually access, but permissions restrict what they see
+                onSave(userData, role, allowedApps, perms);
             };
 
             return (
-                <div className="space-y-6">
-                    <div className="bg-gray-50 p-4 rounded-xl border">
-                        <h4 className="font-bold text-brand-900 mb-4">1. اختر المستوى الوظيفي (لضبط الصلاحيات تلقائياً)</h4>
-                        <div className="grid grid-cols-2 gap-3">
-                            <button onClick={()=>handleRoleChange('supervisor')} className={`p-3 rounded-xl border-2 font-bold transition ${role==='supervisor'?'border-accent-500 bg-accent-50 text-accent-700':'border-transparent bg-white text-gray-500'}`}><span>مشرف</span></button>
-                            <button onClick={()=>handleRoleChange('employee')} className={`p-3 rounded-xl border-2 font-bold transition ${role==='employee'?'border-brand-900 bg-brand-50 text-brand-900':'border-transparent bg-white text-gray-500'}`}><span>موظف</span></button>
-                        </div>
+                <div className="animate-in fade-in space-y-6">
+                    <div className="text-center mb-4">
+                        <div className="font-bold text-xl text-brand-900">{userData.name}</div>
+                        <div className="text-xs text-gray-500">{userData.email}</div>
                     </div>
 
-                    <h4 className="font-bold text-brand-900">2. تخصيص الصلاحيات (اختياري)</h4>
-                    
-                    <div className="bg-crm-500/5 border border-crm-100 p-4 rounded-xl">
-                        <div className="flex items-center gap-2 mb-4 border-b border-crm-100 pb-2"><Icon name="layout-grid" className="text-crm-600"/><h4 className="font-bold text-crm-600">نظام CRM</h4></div>
-                        <label className="flex items-center gap-3 p-2 cursor-pointer"><input type="checkbox" checked={perms.crm_access} onChange={()=>toggle('crm_access')} className="w-5 h-5 accent-crm-600"/><span className="font-bold text-sm">دخول النظام</span></label>
-                        {perms.crm_access && (
-                            <div className="mr-8 mt-2 space-y-2 border-r-2 border-gray-200 pr-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={perms.crm_reports} onChange={()=>toggle('crm_reports')} className="w-4 h-4 accent-crm-600"/><span className="text-sm">مشاهدة التقارير</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={perms.crm_export} onChange={()=>toggle('crm_export')} className="w-4 h-4 accent-crm-600"/><span className="text-sm">تصدير (Excel)</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={perms.crm_delete} onChange={()=>toggle('crm_delete')} className="w-4 h-4 accent-red-500"/><span className="text-sm text-red-600">حذف العملاء</span></label>
+                    <div className="space-y-3">
+                        <p className="text-sm font-bold text-gray-600">اختر المسمى الوظيفي (سيتم ضبط الصلاحيات تلقائياً):</p>
+                        
+                        <button onClick={()=>setRole('supervisor')} className={`w-full p-4 rounded-xl border-2 flex items-center gap-4 transition ${role==='supervisor'?'border-accent-500 bg-accent-50':'border-gray-200 bg-white'}`}>
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${role==='supervisor'?'border-accent-500':'border-gray-300'}`}>{role==='supervisor' && <div className="w-3 h-3 rounded-full bg-accent-500"></div>}</div>
+                            <div className="text-right">
+                                <div className="font-bold text-brand-900">مشرف (Supervisor)</div>
+                                <div className="text-xs text-gray-500">صلاحية كاملة على العملاء والتقارير (بدون تصدير).</div>
                             </div>
-                        )}
-                    </div>
+                        </button>
 
-                    <div className="bg-accent-500/5 border border-accent-100 p-4 rounded-xl">
-                        <div className="flex items-center gap-2 mb-4 border-b border-accent-100 pb-2"><Icon name="clock" className="text-accent-600"/><h4 className="font-bold text-accent-600">نظام الحضور</h4></div>
-                        <label className="flex items-center gap-3 p-2 cursor-pointer"><input type="checkbox" checked={perms.att_access} onChange={()=>toggle('att_access')} className="w-5 h-5 accent-accent-600"/><span className="font-bold text-sm">دخول النظام (تسجيل)</span></label>
-                        {perms.att_access && (
-                            <div className="mr-8 mt-2 space-y-2 border-r-2 border-gray-200 pr-4">
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={perms.att_reports} onChange={()=>toggle('att_reports')} className="w-4 h-4 accent-accent-600"/><span className="text-sm">تقارير الموظفين</span></label>
-                                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={perms.att_zones} onChange={()=>toggle('att_zones')} className="w-4 h-4 accent-accent-600"/><span className="text-sm">إدارة المواقع</span></label>
+                        <button onClick={()=>setRole('employee')} className={`w-full p-4 rounded-xl border-2 flex items-center gap-4 transition ${role==='employee'?'border-brand-900 bg-brand-50':'border-gray-200 bg-white'}`}>
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${role==='employee'?'border-brand-900':'border-gray-300'}`}>{role==='employee' && <div className="w-3 h-3 rounded-full bg-brand-900"></div>}</div>
+                            <div className="text-right">
+                                <div className="font-bold text-brand-900">موظف (Employee)</div>
+                                <div className="text-xs text-gray-500">يرى عملاءه فقط. إضافة وتعديل. لا حذف ولا تقارير.</div>
                             </div>
-                        )}
+                        </button>
                     </div>
 
-                    <div className="flex gap-2">
-                        <button onClick={onCancel} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold">إلغاء</button>
-                        <button onClick={handleSave} className="flex-1 bg-brand-900 text-white py-3 rounded-xl font-bold"><span>حفظ التغييرات</span></button>
+                    <div className="flex gap-2 pt-4 border-t">
+                        <button onClick={onBack} className="flex-1 bg-gray-100 py-3 rounded-xl font-bold">رجوع</button>
+                        <button onClick={handleSave} className="flex-1 bg-brand-900 text-white py-3 rounded-xl font-bold">حفظ وإنهاء</button>
                     </div>
                 </div>
             );
         };
 
-        // --- 3. ADD USER MODAL (SEPARATE) ---
-        const AddUserModal = ({ isOpen, onClose, onSave }) => {
-            const [newUser, setNewUser] = useState({ name: '', email: '', uid: '' });
-            if (!isOpen) return null;
-            return (
-                <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">إضافة موظف جديد</h3><button onClick={onClose}><Icon name="x"/></button></div>
-                        <div className="space-y-3">
-                            <div className="bg-yellow-50 p-3 rounded text-xs text-yellow-800"> انسخ الـ UID من صفحة Authentication</div>
-                            <input className="w-full border rounded p-3" value={newUser.name} onChange={e=>setNewUser({...newUser, name:e.target.value})} placeholder="الاسم الثلاثي" />
-                            <input className="w-full border rounded p-3 text-right date-en" value={newUser.email} onChange={e=>setNewUser({...newUser, email:e.target.value})} placeholder="البريد الإلكتروني" />
-                            <input className="w-full border rounded p-3 text-right date-en font-mono" value={newUser.uid} onChange={e=>setNewUser({...newUser, uid:e.target.value})} placeholder="UID" />
-                            <button onClick={() => onSave(newUser)} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold mt-2"><span>حفظ ومتابعة</span></button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
+        // Main Manager Modal
+        const PortalUserManager = ({ users, onClose }) => {
+            const [step, setStep] = useState('list'); // list, add_details, add_role
+            const [tempUser, setTempUser] = useState(null);
 
-        // --- 4. ADMIN MANAGER (CONTAINER) ---
-        const PortalUserManager = ({ users, currentUser, onClose }) => {
-            const [view, setView] = useState('list'); 
-            const [editingUser, setEditingUser] = useState(null);
-            const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
-            const handleSaveNewUser = (userData) => {
-                if(!userData.uid || !userData.name || !userData.email) return alert('جميع الحقول مطلوبة');
-                // Default Employee Perms
-                const initialPerms = { 
-                    crm_access: true, crm_reports: false, crm_delete: false, crm_export: false,
-                    att_access: true, att_reports: false, att_zones: false
-                }; 
-                set(ref(db, `users/${userData.uid}`), { ...userData, role: 'employee', allowedApps: ['crm', 'attendance'], permissions: initialPerms }).then(() => {
-                    setIsAddModalOpen(false);
-                    setEditingUser({ ...userData, id: userData.uid, role: 'employee', permissions: initialPerms });
-                    setView('permissions');
+            // Handlers
+            const handleStartAdd = () => { setTempUser({name:'', email:'', uid:''}); setStep('add_details'); };
+            const handleDetailsNext = (data) => { 
+                if(!data.name || !data.email || !data.uid) return alert("البيانات ناقصة");
+                setTempUser(data); 
+                setStep('add_role'); 
+            };
+            const handleFinalSave = (userData, role, apps, perms) => {
+                const finalData = { ...userData, role, allowedApps: apps, permissions: perms };
+                // Saving to Firebase using UID as key
+                set(ref(db, `users/${userData.uid}`), finalData).then(() => {
+                    alert('تمت الإضافة بنجاح');
+                    setStep('list');
                 });
             };
-
-            const handleSavePermissions = (uid, role, apps, perms) => {
-                update(ref(db, `users/${uid}`), { role: role, allowedApps: apps, permissions: perms });
-                setEditingUser(null);
-                setView('list');
+            
+            // Edit existing user (Reuse Add Flow logic effectively)
+            const handleEdit = (u) => {
+                setTempUser(u);
+                setStep('add_role'); // Jump straight to role editing
             };
 
-            const displayUsers = users.filter(u => u.id !== currentUser.id);
-
             return (
-                <div className="fixed inset-0 bg-brand-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-xl rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-brand-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl h-auto max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6 border-b pb-4">
-                            <h3 className="text-xl font-black text-brand-900 flex items-center gap-2">
-                                {view === 'list' && <><Icon name="users"/> <span>إدارة الموظفين</span></>}
-                                {view === 'permissions' && <><button onClick={()=>setView('list')}><Icon name="arrow-right"/></button> <span>{editingUser?.name}</span></>}
-                            </h3>
-                            <button onClick={onClose} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200"><Icon name="x"/></button>
+                            <h3 className="text-xl font-black text-brand-900 flex items-center gap-2"><Icon name="users"/> إدارة الموظفين</h3>
+                            <button onClick={onClose}><Icon name="x"/></button>
                         </div>
-                        
-                        <ErrorBoundary>
-                            {view === 'list' && (
-                                <div className="space-y-4">
-                                    <button onClick={() => setIsAddModalOpen(true)} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow"><Icon name="user-plus"/> <span>إضافة موظف جديد</span></button>
-                                    <div className="space-y-2 mt-4">
-                                        {displayUsers.map(u => (
-                                            <div key={u.id} className="flex justify-between items-center p-4 bg-white border rounded-xl hover:shadow-md transition cursor-pointer" onClick={()=>{setEditingUser(u);setView('permissions')}}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${u.role==='supervisor'?'bg-accent-500':'bg-gray-400'}`}>{safeStr(u.name).charAt(0)}</div>
-                                                    <div><div className="font-bold text-brand-900">{u.name}</div><div className="text-xs text-gray-500">{u.email}</div></div>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-xs text-gray-400"><span className="bg-gray-100 px-2 py-1 rounded">{u.role==='supervisor'?'مشرف':'موظف'}</span><Icon name="chevron-left" size={16}/></div>
+
+                        {step === 'list' && (
+                            <div className="space-y-4 animate-in fade-in">
+                                <button onClick={handleStartAdd} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow"><Icon name="user-plus"/> إضافة موظف جديد</button>
+                                <div className="space-y-2 mt-4">
+                                    {users.filter(u => u.role !== 'admin').map(u => (
+                                        <div key={u.id} onClick={()=>handleEdit(u)} className="flex justify-between items-center p-4 bg-white border rounded-xl hover:shadow-md cursor-pointer transition">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${u.role==='supervisor'?'bg-accent-500':'bg-gray-400'}`}>{safeStr(u.name).charAt(0)}</div>
+                                                <div><div className="font-bold text-brand-900">{u.name}</div><div className="text-xs text-gray-500">{u.role==='supervisor'?'مشرف':'موظف'}</div></div>
                                             </div>
-                                        ))}
-                                        {displayUsers.length === 0 && <div className="text-center py-10 text-gray-400"><span>لا يوجد موظفين آخرين.</span></div>}
-                                    </div>
+                                            <Icon name="settings-2" size={18} className="text-gray-400"/>
+                                        </div>
+                                    ))}
+                                    {users.filter(u => u.role !== 'admin').length === 0 && <div className="text-center text-gray-400 py-8">لا يوجد موظفين</div>}
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {view === 'permissions' && editingUser && <RoleEditor user={editingUser} onSave={handleSavePermissions} onCancel={()=>{setEditingUser(null);setView('list')}} />}
-                        </ErrorBoundary>
+                        {step === 'add_details' && <AddUserForm onNext={handleDetailsNext} onCancel={()=>setStep('list')} />}
+                        
+                        {step === 'add_role' && <RoleSelector userData={tempUser} onSave={handleFinalSave} onBack={()=>setStep('list')} />}
+
                     </div>
-
-                    <AddUserModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewUser} />
                 </div>
             );
         };
 
-        // --- 5. PORTAL (LANDING) ---
+        // --- 3. PORTAL (LANDING) ---
         const Portal = ({ user, users, onSelectApp }) => {
             const [showUserManager, setShowUserManager] = useState(false);
             const isAdmin = user.role === 'admin';
@@ -326,68 +261,86 @@
                 <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 relative">
                     {isAdmin && (
                         <div className="absolute top-6 right-6 flex gap-2 z-10">
-                            <button onClick={()=>setShowUserManager(true)} className="bg-brand-900 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl hover:bg-brand-800 transition transform hover:scale-105"><Icon name="users" size={20}/> <span>إدارة الموظفين</span></button>
+                            <button onClick={()=>setShowUserManager(true)} className="bg-brand-900 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl hover:bg-brand-800 transition transform hover:scale-105"><Icon name="users" size={20}/> إدارة الموظفين</button>
                         </div>
                     )}
                     <div className="max-w-4xl w-full">
                         <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
                             <div className="flex items-center gap-5"><div className="w-20 h-20 bg-brand-900 rounded-2xl text-white flex items-center justify-center text-3xl font-black shadow-2xl shadow-brand-900/30"><Logo size={60} /></div><div><h1 className="text-3xl font-black text-brand-900 mb-1">مرحباً، {user.name} 👋</h1><p className="text-gray-500 font-medium">{isAdmin ? 'لوحة تحكم المدير العام' : 'اختر النظام للمتابعة'}</p></div></div>
-                            <button onClick={()=>signOut(auth)} className="text-red-500 bg-red-50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-100 transition"><Icon name="log-out"/> <span>خروج</span></button>
+                            <button onClick={()=>signOut(auth)} className="text-red-500 bg-red-50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-100 transition"><Icon name="log-out"/> خروج</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             {canAccessCRM ? (
-                                <div onClick={() => onSelectApp('crm')} className="portal-card bg-white p-10 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-crm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-crm-500"></div><div className="w-24 h-24 bg-crm-500 text-white rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-crm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="layout-grid" size={48} /></div><h2 className="text-3xl font-black text-gray-800 mb-3">إدارة العملاء</h2><p className="text-gray-500 leading-relaxed text-lg">نظامك المتكامل لإدارة العملاء والصفقات والتقارير.</p><div className="mt-10 flex items-center text-crm-600 font-bold text-lg group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2"/></div></div>
+                                <div onClick={() => onSelectApp('crm')} className="portal-card bg-white p-10 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-crm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-crm-500"></div><div className="w-24 h-24 bg-crm-500 text-white rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-crm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="layout-grid" size={48} /></div><h2 className="text-3xl font-black text-gray-800 mb-3">إدارة العملاء</h2><p className="text-gray-500 leading-relaxed text-lg">نظامك المتكامل لإدارة العملاء والصفقات والتقارير.</p><div className="mt-10 flex items-center text-crm-600 font-bold text-lg group-hover:translate-x-2 transition-transform">الدخول للنظام <Icon name="arrow-left" className="mr-2"/></div></div>
                             ) : ( <div className="bg-gray-50 p-10 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={48} className="text-gray-400 mb-4"/><h2 className="text-2xl font-bold text-gray-500">إدارة العملاء</h2><p className="text-gray-400 mt-2">غير مصرح لك بالدخول</p></div> )}
                             {canAccessAttendance ? (
-                                <div onClick={() => onSelectApp('attendance')} className="portal-card bg-white p-10 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-accent-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-accent-500"></div><div className="w-24 h-24 bg-accent-500 text-white rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-accent-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="clock" size={48} /></div><h2 className="text-3xl font-black text-gray-800 mb-3">الحضور والانصراف</h2><p className="text-gray-500 leading-relaxed text-lg">تسجيل الحضور اليومي وتتبع ساعات العمل.</p><div className="mt-10 flex items-center text-accent-600 font-bold text-lg group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2"/></div></div>
+                                <div onClick={() => onSelectApp('attendance')} className="portal-card bg-white p-10 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-accent-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-accent-500"></div><div className="w-24 h-24 bg-accent-500 text-white rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-accent-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="clock" size={48} /></div><h2 className="text-3xl font-black text-gray-800 mb-3">الحضور والانصراف</h2><p className="text-gray-500 leading-relaxed text-lg">تسجيل الحضور اليومي وتتبع ساعات العمل.</p><div className="mt-10 flex items-center text-accent-600 font-bold text-lg group-hover:translate-x-2 transition-transform">الدخول للنظام <Icon name="arrow-left" className="mr-2"/></div></div>
                             ) : ( <div className="bg-gray-50 p-10 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={48} className="text-gray-400 mb-4"/><h2 className="text-2xl font-bold text-gray-500">الحضور والانصراف</h2><p className="text-gray-400 mt-2">غير مصرح لك بالدخول</p></div> )}
                         </div>
                     </div>
-                    {showUserManager && <PortalUserManager users={users} currentUser={user} onClose={()=>setShowUserManager(false)} />}
+                    {showUserManager && <PortalUserManager users={users} onClose={()=>setShowUserManager(false)} />}
                 </div>
             );
         };
 
-        // --- 6. CRM SYSTEM COMPONENTS ---
-        const CRMHeader = ({ title, clients, onToggleSidebar }) => {
-            const [showNotifs, setShowNotifs] = useState(false);
-            const today = new Date().toISOString().slice(0,10);
-            const reminders = clients.filter(c => c.nextFollowUp === today);
-            const allNotifs = reminders.map(c => ({ type: 'reminder', ...c }));
-            return (
-                <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-30">
-                    <div className="flex items-center gap-2"><button onClick={onToggleSidebar} className="md:hidden text-gray-600 p-1"><Icon name="menu" size={24}/></button><div className="font-bold text-xl text-brand-900">{title}</div></div>
-                    <div className="relative"><button onClick={() => setShowNotifs(!showNotifs)} className="p-2 rounded-full hover:bg-gray-100 relative text-gray-600"><Icon name="bell" size={22} />{allNotifs.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}</button>{showNotifs && (<><div className="fixed inset-0 z-40" onClick={() => setShowNotifs(false)}></div><div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border z-50 overflow-hidden"><div className="p-3 border-b bg-gray-50 font-bold text-sm text-brand-900 flex justify-between"><span>التنبيهات</span><span>{allNotifs.length}</span></div><div className="max-h-64 overflow-y-auto">{allNotifs.length===0?<div className="p-4 text-center text-gray-400 text-xs">لا توجد تنبيهات</div>:allNotifs.map((n,i)=><div key={i} className="p-3 border-b hover:bg-gray-50 text-sm"><div className="font-bold">{n.name}</div><div className="text-xs text-gray-500">متابعة اليوم</div></div>)}</div></div></>)}</div>
-                </header>
-            );
-        };
+        // --- 4. CRM SYSTEM COMPONENTS (UPDATED WITH STRICT RULES) ---
+        const CRMHeader = ({ title, clients, onToggleSidebar }) => { /* No changes */ const [showNotifs, setShowNotifs] = useState(false); const today = new Date().toISOString().slice(0,10); const reminders = clients.filter(c => c.nextFollowUp === today); const allNotifs = reminders.map(c => ({ type: 'reminder', ...c })); return ( <header className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-30"> <div className="flex items-center gap-2"><button onClick={onToggleSidebar} className="md:hidden text-gray-600 p-1"><Icon name="menu" size={24}/></button><div className="font-bold text-xl text-brand-900">{title}</div></div> <div className="relative"><button onClick={() => setShowNotifs(!showNotifs)} className="p-2 rounded-full hover:bg-gray-100 relative text-gray-600"><Icon name="bell" size={22} />{allNotifs.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}</button>{showNotifs && (<><div className="fixed inset-0 z-40" onClick={() => setShowNotifs(false)}></div><div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border z-50 overflow-hidden"><div className="p-3 border-b bg-gray-50 font-bold text-sm text-brand-900 flex justify-between"><span>التنبيهات</span><span>{allNotifs.length}</span></div><div className="max-h-64 overflow-y-auto">{allNotifs.length===0?<div className="p-4 text-center text-gray-400 text-xs">لا توجد تنبيهات</div>:allNotifs.map((n,i)=><div key={i} className="p-3 border-b hover:bg-gray-50 text-sm"><div className="font-bold">{n.name}</div><div className="text-xs text-gray-500">متابعة اليوم</div></div>)}</div></div></>)}</div> </header> ); };
 
-        const CRMDashboard = ({ clients }) => {
-            const totalClients = clients.length; const today = new Date().toISOString().slice(0,10); const reminders = clients.filter(c => c.nextFollowUp === today); const statusData = STATUS_LIST.map(s => ({ name: s.label, count: clients.filter(c => c.status === s.key).length, key: s.key, color: s.color })); const projectStats = {}; clients.forEach(c => safeArr(c.projects).forEach(p => { const n = safeStr(p); if(n) projectStats[n] = (projectStats[n]||0)+1; })); const projectData = Object.entries(projectStats).map(([name, value]) => ({ name, value })); const COLORS = ['#2C3340', '#CE9B52', '#E6BC76', '#94a3b8', '#475569', '#64748b'];
+        const CRMDashboard = ({ clients, currentUser }) => {
+            const isAdmin = currentUser.role === 'admin';
+            const isSupervisor = currentUser.permissions?.crm_role === 'supervisor';
+            const isEmployee = currentUser.permissions?.crm_role === 'employee';
+
+            // Logic: Admin/Supervisor see ALL. Employee sees ASSIGNED only.
+            const relevantClients = clients.filter(c => {
+                if (isAdmin || isSupervisor) return true;
+                if (isEmployee) return c.assignedTo === currentUser.name; // Strict check
+                return false;
+            });
+
+            const totalClients = relevantClients.length; const today = new Date().toISOString().slice(0,10); const reminders = relevantClients.filter(c => c.nextFollowUp === today); const statusData = STATUS_LIST.map(s => ({ name: s.label, count: relevantClients.filter(c => c.status === s.key).length, key: s.key, color: s.color })); const projectStats = {}; relevantClients.forEach(c => safeArr(c.projects).forEach(p => { const n = safeStr(p); if(n) projectStats[n] = (projectStats[n]||0)+1; })); const projectData = Object.entries(projectStats).map(([name, value]) => ({ name, value })); const COLORS = ['#2C3340', '#CE9B52', '#E6BC76', '#94a3b8', '#475569', '#64748b'];
             return (
                 <div className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center"><div><h2 className="text-lg font-bold opacity-80 mb-1">إجمالي العملاء</h2><div className="text-4xl font-black">{totalClients}</div></div><div className="bg-white/10 p-4 rounded-full"><Icon name="users" size={32} /></div></div><div className="bg-white p-6 rounded-2xl shadow-lg border border-amber-100 md:col-span-2 relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div><div className="flex justify-between items-start mb-4"><h3 className="font-bold text-brand-900 flex items-center gap-2"><Icon name="bell" className="text-amber-500"/> تذكيرات اليوم ({reminders.length})</h3></div>{reminders.length > 0 ? <div className="flex gap-3 overflow-x-auto pb-2">{reminders.map(c => (<div key={c.id} className="min-w-[200px] bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm"><div className="font-bold text-brand-900 mb-1">{c.name}</div><div className="text-xs text-gray-500 mb-2 date-en">{c.phone}</div></div>))}</div> : <div className="text-center text-gray-400 text-sm py-2">لا توجد متابعات</div>}</div></div><div><h3 className="font-bold text-brand-900 mb-4 flex items-center gap-2"><Icon name="activity" size={18}/> حالة العملاء</h3><div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">{statusData.map(s => (<div key={s.key} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition"><div className="text-xs text-gray-500 font-bold mb-2">{s.name}</div><div className="flex justify-between items-end"><div className="text-2xl font-black text-brand-900">{s.count}</div><div className={`w-2 h-2 rounded-full ${s.color.split(' ')[0].replace('bg-', 'bg-')}`}></div></div></div>))}</div></div>{window.Recharts && ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 className="font-bold text-brand-900 mb-4 text-sm">توزيع المشاريع</h3><div className="h-64" dir="ltr"><ResponsiveContainer><PieChart><Pie data={projectData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">{projectData.map((e,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div></div><div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 className="font-bold text-brand-900 mb-4 text-sm">نظرة عامة</h3><div className="h-64" dir="ltr"><ResponsiveContainer><BarChart data={statusData}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis/><Tooltip/><Bar dataKey="count" fill="#2C3340" radius={[4,4,0,0]} barSize={30}/></BarChart></ResponsiveContainer></div></div></div> )}</div>
             );
         };
 
-        const CRMReports = ({ clients, users }) => {
-            const [startDate, setStartDate] = useState(''); const [endDate, setEndDate] = useState(''); 
-            const filteredClients = clients.filter(c => { const d = c.dateAdded ? c.dateAdded.slice(0, 10) : ''; return (startDate ? d >= startDate : true) && (endDate ? d <= endDate : true); }); 
-            const reportData = users.map(u => { const userClients = filteredClients.filter(c => c.assignedTo === u.name); return { id: u.id, name: u.name, total: userClients.length, sold: userClients.filter(c => c.status === 'Sold').length, deposit: userClients.filter(c => c.status === 'Deposit').length, inProgress: userClients.filter(c => ['New','Contacted1','Contacted2','Contacted3'].includes(c.status)).length }; });
+        const CRMReports = ({ clients, users }) => { /* Same as before */
+            const [startDate, setStartDate] = useState(''); const [endDate, setEndDate] = useState(''); const filteredClients = clients.filter(c => { const d = c.dateAdded ? c.dateAdded.slice(0, 10) : ''; return (startDate ? d >= startDate : true) && (endDate ? d <= endDate : true); }); const reportData = users.map(u => { const userClients = filteredClients.filter(c => c.assignedTo === u.name); return { id: u.id, name: u.name, total: userClients.length, sold: userClients.filter(c => c.status === 'Sold').length, deposit: userClients.filter(c => c.status === 'Deposit').length, inProgress: userClients.filter(c => ['New','Contacted1','Contacted2','Contacted3'].includes(c.status)).length }; });
             return ( <div className="space-y-6"><div className="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap items-center gap-4"><div className="flex items-center gap-2"><span className="text-sm font-bold text-gray-500">من:</span><input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={startDate} onChange={e=>setStartDate(e.target.value)} /></div><div className="flex items-center gap-2"><span className="text-sm font-bold text-gray-500">إلى:</span><input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div>{(startDate||endDate)&&<button onClick={()=>{setStartDate('');setEndDate('')}} className="text-xs text-red-500 hover:underline font-bold">إلغاء</button>}</div><div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-right"><thead className="bg-gray-50 text-sm font-bold text-brand-900"><tr><th className="p-4">الموظف</th><th className="p-4 text-center">إجمالي العملاء</th><th className="p-4 text-center text-emerald-600">تم البيع</th><th className="p-4 text-center text-amber-600">عربون</th><th className="p-4 text-center text-blue-600">قيد المتابعة</th></tr></thead><tbody className="divide-y">{reportData.map(r=><tr key={r.id} className="hover:bg-gray-50"><td className="p-4"><div className="font-bold text-brand-900">{r.name}</div></td><td className="p-4 text-center font-bold">{r.total}</td><td className="p-4 text-center font-bold text-emerald-600">{r.sold}</td><td className="p-4 text-center font-bold text-amber-600">{r.deposit}</td><td className="p-4 text-center font-bold text-blue-600">{r.inProgress}</td></tr>)}</tbody></table></div></div> );
         };
 
         const CRMClientList = ({ clients, users, currentUser, onAdd, onEdit, onImport }) => {
             const [search, setSearch] = useState(''); const [filterStatus, setFilterStatus] = useState(''); const [filterAssignee, setFilterAssignee] = useState(''); const [itemsPerPage, setItemsPerPage] = useState(10); const [currentPage, setCurrentPage] = useState(1); const [deleteId, setDeleteId] = useState(null); const assignees = useMemo(() => [...new Set(clients.map(c => c.assignedTo).filter(Boolean))], [clients]);
-            const filtered = clients.filter(c => { if(currentUser.role === 'employee' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false; const s = safeStr(search).toLowerCase(); return (safeStr(c.name).toLowerCase().includes(s) || safeStr(c.phone).includes(s)) && (filterStatus ? c.status === filterStatus : true) && (filterAssignee ? c.assignedTo === filterAssignee : true); });
+            
+            // 1. Filter Logic
+            const filtered = clients.filter(c => { 
+                // Employee logic: Only assigned or added by self
+                if(currentUser.role !== 'admin' && currentUser.permissions?.crm_role === 'employee' && c.assignedTo !== currentUser.name && c.addedBy !== currentUser.email) return false;
+                
+                const s = safeStr(search).toLowerCase(); 
+                return (safeStr(c.name).toLowerCase().includes(s) || safeStr(c.phone).includes(s)) && (filterStatus ? c.status === filterStatus : true) && (filterAssignee ? c.assignedTo === filterAssignee : true); 
+            });
             useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterAssignee, itemsPerPage]); 
             const displayedClients = itemsPerPage === 'All' ? filtered : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage); 
-            const isAdmin = currentUser.role === 'admin'; const isSupervisor = currentUser.role === 'supervisor'; const p = currentUser.permissions || {}; const canDelete = isAdmin || p.crm_delete || (isSupervisor && p.crm_delete !== false); const canExport = isAdmin || p.crm_export; 
+            
+            // 2. Permissions
+            const isAdmin = currentUser.role === 'admin';
+            const p = currentUser.permissions || {};
+            const canDelete = isAdmin || p.crm_delete;
+            const canExport = isAdmin; // Only Admin as requested
+
             const handleExport = () => { const excelData = filtered.map(c => ({ 'الاسم': c.name, 'رقم الهاتف': c.phone, 'المشاريع': safeArr(c.projects).join(', '), 'الحالة': STATUS_LIST.find(s=>s.key===c.status)?.label||c.status, 'الموظف': c.assignedTo||'-', 'المنشئ': c.addedBy||'-', 'تاريخ الإضافة': c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-' })); exportToExcel(excelData, "Clients"); }; 
             const handleImportFile = (e) => { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { const bstr = evt.target.result; const wb = XLSX.read(bstr, {type:'binary'}); const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); onImport(data); }; reader.readAsBinaryString(file); }; 
             const confirmDelete = () => { if(deleteId) { remove(ref(db, `clients/${deleteId}`)); setDeleteId(null); } };
+            
             return (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center flex-wrap gap-4"><div className="flex gap-2 flex-wrap mr-auto">{canExport && (<><div className="relative overflow-hidden"><button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="upload" size={18}/> استيراد</button><input type="file" accept=".xlsx" onChange={handleImportFile} className="absolute inset-0 opacity-0 cursor-pointer"/></div><button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="file-spreadsheet" size={18}/> تصدير</button></>)}<button onClick={onAdd} className="bg-brand-900 hover:bg-brand-800 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="plus" size={18}/> إضافة عميل</button></div></div>
+                    <div className="flex justify-between items-center flex-wrap gap-4">
+                        <div className="flex gap-2 flex-wrap mr-auto">
+                            {canExport && (<><div className="relative overflow-hidden"><button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="upload" size={18}/> استيراد</button><input type="file" accept=".xlsx" onChange={handleImportFile} className="absolute inset-0 opacity-0 cursor-pointer"/></div><button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="file-spreadsheet" size={18}/> تصدير</button></>)}
+                            <button onClick={onAdd} className="bg-brand-900 hover:bg-brand-800 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="plus" size={18}/> إضافة عميل</button>
+                        </div>
+                    </div>
                     <div className="bg-white p-3 rounded-xl shadow-sm border flex flex-wrap gap-2 items-center"><input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 outline-none min-w-[150px] text-sm" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} /><select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="">كل الحالات</option>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select><select className="bg-gray-50 rounded-lg px-3 py-2 outline-none text-sm" value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)}><option value="">كل الموظفين</option>{assignees.map(a=><option key={a} value={a}>{a}</option>)}</select></div>
                     <div className="bg-white rounded-xl shadow-sm border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right"><thead className="bg-gray-50 text-sm font-bold text-brand-900"><tr><th className="p-4">الاسم</th><th className="p-4">المشاريع</th><th className="p-4">الحالة</th><th className="p-4">الموظف المسند</th><th className="p-4">المنشئ</th><th className="p-4">تاريخ الإضافة</th><th className="p-4">تاريخ المتابعة</th><th className="p-4"></th></tr></thead><tbody className="divide-y">{displayedClients.length > 0 ? displayedClients.map(c => (<tr key={c.id} className="hover:bg-gray-50 group"><td className="p-4"><div className="font-bold text-brand-900">{safeStr(c.name)}</div><div className="flex items-center gap-2 mt-1"><span className="text-xs text-gray-500 date-en">{safeStr(c.phone)}</span><a href={`https://wa.me/966${safeStr(c.phone).substring(1)}`} target="_blank" className="bg-green-50 text-green-600 p-1.5 rounded-full"><Icon name="message-circle" size={14} /></a></div></td><td className="p-4 text-sm text-gray-600">{safeArr(c.projects).map((p,i)=><div key={i}>• {safeStr(p)}</div>)}</td><td className="p-4"><span className={`px-2 py-1 rounded text-xs border ${STATUS_LIST.find(s=>s.key===c.status)?.color}`}>{STATUS_LIST.find(s=>s.key===c.status)?.label}</span></td><td className="p-4 text-sm text-gray-600">{safeStr(c.assignedTo)}</td><td className="p-4 text-sm text-gray-500">{safeStr(c.addedBy)}</td><td className="p-4 text-sm text-gray-500 date-en">{c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-GB') : '-'}</td><td className="p-4 text-xs text-amber-600 font-bold date-en">{c.nextFollowUp||'-'}</td><td className="p-4 flex items-center gap-2"><button onClick={()=>onEdit(c)} className="text-brand-900 hover:bg-gray-100 p-2 rounded"><Icon name="edit" size={16}/></button>{canDelete && <button onClick={()=>setDeleteId(c.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Icon name="trash-2" size={16}/></button>}</td></tr>)) : <tr><td colSpan="8" className="p-8 text-center text-gray-400">لا توجد نتائج</td></tr>}</tbody></table></div></div>
                     {deleteId && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"><div className="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full text-center"><h3 className="text-lg font-bold mb-2">هل أنت متأكد؟</h3><div className="flex gap-3 justify-center mt-4"><button onClick={confirmDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg">حذف</button><button onClick={()=>setDeleteId(null)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg">إلغاء</button></div></div></div>}
@@ -396,59 +349,49 @@
         };
 
         const CRMClientModal = ({ isOpen, onClose, client, onSave, users, currentUser }) => {
-            const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' }); const [newNote, setNewNote] = useState(''); const [notes, setNotes] = useState([]); const notesEndRef = useRef(null);
+            const [d, setD] = useState({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' }); 
+            const [newNote, setNewNote] = useState(''); const [notes, setNotes] = useState([]); const notesEndRef = useRef(null);
             useEffect(() => { if(client) { setD(client); setNotes(client.notes ? Object.values(client.notes) : []); } else { setD({ name: '', phone: '', projects: [], status: 'New', assignedTo: currentUser.role==='employee'?currentUser.name:'', source: 'مباشر', nextFollowUp: '' }); setNotes([]); } }, [client]); useEffect(() => { notesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [notes, isOpen]);
             const toggleProject = (p) => { const curr = safeArr(d.projects); setD({ ...d, projects: curr.includes(p) ? curr.filter(x=>x!==p) : [...curr, p] }); };
             const handleAddNote = () => { if(!newNote.trim()) return; const noteData = { text: newNote, date: new Date().toISOString(), author: currentUser.name }; setNotes([...notes, noteData]); if(client) push(ref(db, `clients/${client.id}/notes`), noteData); else setD({...d, notes: [...notes, noteData]}); setNewNote(''); };
-            const canAssign = currentUser.role === 'admin' || currentUser.role === 'supervisor';
+            
+            // Assignment Permission: Admin OR Supervisor
+            const canAssign = currentUser.role === 'admin' || currentUser.permissions?.crm_role === 'supervisor';
+
             return ( <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"><div className="bg-white w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-4"><h3 className="font-bold text-lg">{client?'تعديل العميل':'إضافة عميل'}</h3><input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="الاسم" value={safeStr(d.name)} onChange={e=>setD({...d, name:e.target.value})} /><input className="w-full bg-gray-50 border rounded-lg p-3 date-en text-right" placeholder="05xxxxxxxx" value={safeStr(d.phone)} onChange={e=>setD({...d, phone:e.target.value})} /><div><label className="text-xs font-bold block mb-2">المشاريع</label><div className="grid grid-cols-2 gap-2">{PROJECT_LIST.map(p => (<button key={p} onClick={()=>toggleProject(p)} className={`p-2 rounded text-xs border ${safeArr(d.projects).includes(p)?'bg-brand-900 text-white':'bg-white'}`}>{p}</button>))}</div></div><select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.source)} onChange={e=>setD({...d, source:e.target.value})}>{CLIENT_SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select><input className="w-full bg-gray-50 border rounded-lg p-3" placeholder="رقم الوحدة" value={safeStr(d.unitNumber)} onChange={e=>setD({...d, unitNumber:e.target.value})} /><select className="w-full bg-gray-50 border rounded-lg p-3" value={safeStr(d.status)} onChange={e=>setD({...d, status:e.target.value})}>{STATUS_LIST.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select><select className="w-full bg-gray-50 border rounded-lg p-3 disabled:opacity-50" value={safeStr(d.assignedTo)} onChange={e=>setD({...d, assignedTo:e.target.value})} disabled={!canAssign}><option value="">بدون إسناد</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select><div><label className="text-xs font-bold block mb-1 text-amber-600">تاريخ المتابعة القادم</label><input type="date" className="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 date-en" value={d.nextFollowUp || ''} onChange={e=>setD({...d, nextFollowUp:e.target.value})} /></div></div><div className="flex flex-col h-full"><div className="flex justify-between mb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon name="notebook-pen" size={18}/> الملاحظات</h3><button onClick={onClose} className="md:hidden"><Icon name="x"/></button></div><div className="flex-1 bg-gray-50 border rounded-xl p-4 mb-4 overflow-y-auto max-h-[400px] space-y-3">{notes.length === 0 && <div className="text-center text-gray-400 text-sm mt-10">لا توجد ملاحظات بعد</div>}{notes.map((n, i) => (<div key={i} className="bg-white p-3 rounded-lg border shadow-sm text-sm"><p className="text-gray-800 mb-2">{n.text}</p><div className="flex justify-between text-xs text-gray-400"><span>{n.author}</span><span className="date-en">{new Date(n.date).toLocaleDateString('en-GB')}</span></div></div>))}<div ref={notesEndRef} /></div><div className="flex gap-2 mb-6"><input className="flex-1 border rounded-lg p-2 text-sm" placeholder="اكتب ملاحظة..." value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyPress={e=>e.key==='Enter'&&handleAddNote()} /><button onClick={handleAddNote} className="bg-gray-200 hover:bg-gray-300 p-2 rounded-lg"><Icon name="send" size={16}/></button></div><div className="mt-auto flex gap-3"><button onClick={onClose} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200">إلغاء</button><button onClick={()=>onSave(client?d:{...d, notes:notes})} className="flex-1 bg-brand-900 text-white py-3 rounded-lg font-bold hover:bg-brand-800 shadow-lg">حفظ البيانات</button></div></div></div></div> );
         };
         const CRMBackup = ({ clients, users }) => ( <div className="bg-white p-6 rounded-xl shadow-sm border"><button onClick={() => { const data = { clients, users, date: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "backup.json"; link.click(); }} className="w-full bg-brand-900 text-white p-3 rounded-lg flex justify-center gap-2"><Icon name="download" /> تحميل نسخة احتياطية</button></div> );
 
-        // --- 7. CRM APP CONTAINER ---
+        // --- 5. CRM APP CONTAINER ---
         const CRMApp = ({ user, clients, users, onSaveClient, onImport, onBack }) => {
             const [page, setPage] = useState('dashboard'); const [modalOpen, setModalOpen] = useState(false); const [editClient, setEditClient] = useState(null); const [sidebarOpen, setSidebarOpen] = useState(false);
             const getPageTitle = () => { switch(page) { case 'dashboard': return 'لوحة التحكم'; case 'clients': return 'العملاء والطلبات'; case 'reports': return 'التقارير'; case 'backup': return 'الإعدادات'; default: return ''; }};
             
             const isAdmin = user.role === 'admin';
-            const isSupervisor = user.role === 'supervisor';
-            
-            const p = user.permissions || {};
-            const canSeeReports = isAdmin || isSupervisor || p.crm_reports;
+            const isSupervisor = user.permissions?.crm_role === 'supervisor';
+            const canSeeReports = isAdmin || isSupervisor || user.permissions?.crm_reports;
             const canBackup = isAdmin; 
 
             return (
                 <div className="flex min-h-screen bg-slate-50">
                     <aside className={`fixed md:sticky top-0 h-screen w-72 bg-white border-l z-50 transition-transform ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
-                        <div className="p-6 h-full flex flex-col">
-                            <div className="flex items-center gap-2 mb-8 text-brand-900 font-black text-xl"><Logo size={40} /> بيوتكم</div>
-                            <nav className="flex-1 space-y-1">
-                                <button onClick={()=>{setPage('dashboard');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='dashboard'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="layout-dashboard"/> لوحة التحكم</button>
-                                <button onClick={()=>{setPage('clients');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='clients'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="users"/> العملاء</button>
-                                {canSeeReports && (<button onClick={()=>{setPage('reports');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="bar-chart-2"/> التقارير</button>)}
-                                {canBackup && (<button onClick={()=>{setPage('backup');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='backup'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="settings"/> الإعدادات</button>)}
-                            </nav>
-                            <div className="border-t pt-4 mt-auto">
-                                <button onClick={onBack} className="w-full bg-gray-50 border border-gray-200 text-gray-700 p-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-gray-100 transition mb-4"><Icon name="grid" size={16}/> تبديل التطبيق</button>
-                                <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-full bg-brand-900 text-white flex items-center justify-center text-xs">{safeStr(user.name).charAt(0)}</div><div><div className="text-sm font-bold text-brand-900">{safeStr(user.name)}</div><div className="text-xs text-gray-500">{user.role==='admin'?'مسؤول':user.role==='supervisor'?'مشرف':'موظف'}</div></div></div>
-                            </div>
-                        </div>
+                        <div className="p-6 h-full flex flex-col"><div className="flex items-center gap-2 mb-8 text-brand-900 font-black text-xl"><Logo size={40} /> بيوتكم</div><nav className="flex-1 space-y-1"><button onClick={()=>{setPage('dashboard');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='dashboard'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="layout-dashboard"/> لوحة التحكم</button><button onClick={()=>{setPage('clients');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='clients'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="users"/> العملاء</button>{canSeeReports && (<button onClick={()=>{setPage('reports');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="bar-chart-2"/> التقارير</button>)}{canBackup && (<button onClick={()=>{setPage('backup');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='backup'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="settings"/> الإعدادات</button>)}</nav><div className="border-t pt-4 mt-auto"><button onClick={onBack} className="w-full bg-gray-50 border border-gray-200 text-gray-700 p-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-gray-100 transition mb-4"><Icon name="grid" size={16}/> تبديل التطبيق</button><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-full bg-brand-900 text-white flex items-center justify-center text-xs">{safeStr(user.name).charAt(0)}</div><div><div className="text-sm font-bold text-brand-900">{safeStr(user.name)}</div><div className="text-xs text-gray-500">{user.role==='admin'?'مسؤول':user.permissions?.crm_role==='supervisor'?'مشرف':'موظف'}</div></div></div></div></div>
                     </aside>
                     <main className="flex-1 flex flex-col h-screen overflow-hidden">
                         <CRMHeader title={getPageTitle()} clients={clients} onToggleSidebar={()=>setSidebarOpen(true)} />
-                        <div className="flex-1 overflow-y-auto p-6"><div className="max-w-5xl mx-auto">{page === 'dashboard' && <CRMDashboard clients={clients} />}{page === 'clients' && <CRMClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} onImport={onImport} />}{page === 'reports' && canSeeReports && <CRMReports clients={clients} users={users} />}{page === 'backup' && canBackup && <CRMBackup clients={clients} users={users} />}</div></div>
+                        <div className="flex-1 overflow-y-auto p-6"><div className="max-w-5xl mx-auto">{page === 'dashboard' && <CRMDashboard clients={clients} currentUser={user} />}{page === 'clients' && <CRMClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} onImport={onImport} />}{page === 'reports' && canSeeReports && <CRMReports clients={clients} users={users} />}{page === 'backup' && canBackup && <CRMBackup clients={clients} users={users} />}</div></div>
                     </main>
                     {modalOpen && <CRMClientModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} client={editClient} onSave={(d)=>{onSaveClient(d, editClient);setModalOpen(false)}} users={users} currentUser={user} />}
                 </div>
             );
         };
 
-        // --- 8. ATTENDANCE SYSTEM (UPDATED PERMISSIONS) ---
+        // --- 6. ATTENDANCE SYSTEM ---
         const MapZoneEditor = ({ center, radius, onChange }) => { const mapRef = useRef(null); const mapObj = useRef(null); const markerObj = useRef(null); const circleObj = useRef(null); useEffect(() => { if (!mapRef.current) return; if (!mapObj.current) { mapObj.current = L.map(mapRef.current).setView([center.lat, center.lng], 15); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapObj.current); const icon = L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png', shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }); markerObj.current = L.marker([center.lat, center.lng], { icon, draggable: true }).addTo(mapObj.current); circleObj.current = L.circle([center.lat, center.lng], { color: '#CE9B52', fillColor: '#CE9B52', fillOpacity: 0.2, radius: radius }).addTo(mapObj.current); const update = (lat, lng) => { markerObj.current.setLatLng([lat, lng]); circleObj.current.setLatLng([lat, lng]); onChange({ lat, lng }, radius); }; mapObj.current.on('click', (e) => update(e.latlng.lat, e.latlng.lng)); markerObj.current.on('dragend', (e) => { const l = e.target.getLatLng(); update(l.lat, l.lng); }); } }, []); useEffect(() => { if(circleObj.current) circleObj.current.setRadius(radius); }, [radius]); return <div ref={mapRef} className="w-full h-64 rounded-xl z-0" />; };
         const calculateDistance = (lat1, lon1, lat2, lon2) => { const R = 6371e3; const φ1 = lat1 * Math.PI/180; const φ2 = lat2 * Math.PI/180; const Δφ = (lat2-lat1) * Math.PI/180; const Δλ = (lon2-lon1) * Math.PI/180; const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2); return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); };
 
         const AttendanceApp = ({ user, zones, usersList, logs, onBack }) => {
-            const isAdmin = user.role === 'admin'; const isSupervisor = user.role === 'supervisor'; const p = user.permissions || {}; const canSeeReports = isAdmin || isSupervisor || p.att_reports; const canManageZones = isAdmin || p.att_zones;
+            const isAdmin = user.role === 'admin'; const isSupervisor = user.permissions?.att_role === 'supervisor'; const p = user.permissions || {}; const canSeeReports = isAdmin || isSupervisor || p.att_reports; const canManageZones = isAdmin || p.att_zones;
             const [tab, setTab] = useState(canSeeReports ? 'summary' : 'my_attendance'); const [showZoneModal, setShowZoneModal] = useState(false); const [newZone, setNewZone] = useState({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200 }); const myZone = zones.find(z => z.id === user.zoneId); const [status, setStatus] = useState('loading'); const [distance, setDistance] = useState(0); const [processing, setProcessing] = useState(false); const [note, setNote] = useState('');
             const handleAddZone = () => { push(ref(db, 'zones'), newZone); setShowZoneModal(false); alert('تم إضافة الموقع'); };
             const exportReport = () => { const data = logs.map(l => { const u = usersList.find(x => x.id === l.uid); return { 'تاريخ': formatDate(l.timestamp), 'اسم': u?.name, 'نوع': l.type, 'وقت': formatTime(l.timestamp), 'ملاحظات': l.note }; }); const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Att"); XLSX.writeFile(wb, "Attendance_Report.xlsx"); };
@@ -471,7 +414,7 @@
             );
         };
 
-        // --- 9. MAIN ORCHESTRATOR ---
+        // --- 7. MAIN ORCHESTRATOR ---
         const App = () => {
             const [user, setUser] = useState(null); const [dbUser, setDbUser] = useState(null); const [currentApp, setCurrentApp] = useState('portal');
             const [clients, setClients] = useState([]); const [users, setUsers] = useState([]); const [zones, setZones] = useState([]); const [logs, setLogs] = useState([]); const [loading, setLoading] = useState(true);
