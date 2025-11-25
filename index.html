@@ -427,6 +427,8 @@
 
             useEffect(() => { 
                 if (!mapRef.current) return; 
+                
+                // Initialize map ONLY ONCE
                 if (!mapObj.current) { 
                     mapObj.current = L.map(mapRef.current).setView([center.lat, center.lng], 15); 
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapObj.current); 
@@ -437,35 +439,44 @@
                     circleObj.current = L.circle([center.lat, center.lng], { color: '#CE9B52', fillColor: '#CE9B52', fillOpacity: 0.2, radius: radius }).addTo(mapObj.current); 
                     
                     const handleUpdate = (lat, lng) => { 
-                        // Access latest props from ref
                         const currentRadius = propsRef.current.radius;
                         const currentOnChange = propsRef.current.onChange;
                         
-                        markerObj.current.setLatLng([lat, lng]); 
-                        circleObj.current.setLatLng([lat, lng]); 
+                        // Update UI immediately for smoothness
+                        if(markerObj.current) markerObj.current.setLatLng([lat, lng]); 
+                        if(circleObj.current) circleObj.current.setLatLng([lat, lng]); 
+                        
+                        // Propagate change
                         currentOnChange({ lat, lng }, currentRadius); 
                     }; 
 
                     mapObj.current.on('click', (e) => handleUpdate(e.latlng.lat, e.latlng.lng)); 
                     markerObj.current.on('dragend', (e) => { const l = e.target.getLatLng(); handleUpdate(l.lat, l.lng); }); 
-                } 
-            }, []); 
+                } else {
+                    // If map exists, just update view to center
+                     mapObj.current.setView([center.lat, center.lng], 15);
+                }
+            }, []); // Empty dependency array to run init only once
             
-            useEffect(() => { if(circleObj.current) circleObj.current.setRadius(radius); }, [radius]); 
+            // Update circle radius when prop changes
+            useEffect(() => { 
+                if(circleObj.current) circleObj.current.setRadius(radius); 
+            }, [radius]); 
             
-            // FIX: Update map center and marker when center prop changes
+            // Update map/marker position when center prop changes (e.g. selecting different zone)
             useEffect(() => {
                 if(mapObj.current && markerObj.current && circleObj.current) {
                     const newLatLng = [center.lat, center.lng];
                     const currentLatLng = markerObj.current.getLatLng();
-                    // Ensure map updates only if significantly different to prevent loops
-                    if (Math.abs(currentLatLng.lat - center.lat) > 0.00001 || Math.abs(currentLatLng.lng - center.lng) > 0.00001) {
+                    
+                    // Only update if position actually changed to prevent loop
+                    if (Math.abs(currentLatLng.lat - center.lat) > 0.0001 || Math.abs(currentLatLng.lng - center.lng) > 0.0001) {
                          markerObj.current.setLatLng(newLatLng);
                          circleObj.current.setLatLng(newLatLng);
                          mapObj.current.setView(newLatLng); 
                     }
                 }
-            }, [center]);
+            }, [center.lat, center.lng]); // Depend on lat/lng primitives
 
             return <div ref={mapRef} className="w-full h-64 rounded-xl z-0" />; 
         };
@@ -510,30 +521,40 @@
         };
 
         const ZoneModal = ({ isOpen, onClose, users, zones, onSave, zoneToEdit }) => {
+            // Initial State - Independent
             const [zone, setZone] = useState({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200, assignedUsers: [] });
             
+            // Reset state COMPLETELY when modal opens or zoneToEdit changes
             useEffect(() => { 
                 if (isOpen) { 
-                    // Use spread to clone object and break reference
-                    if (zoneToEdit) setZone({ ...zoneToEdit }); 
-                    else setZone({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200, assignedUsers: [] }); 
+                    if (zoneToEdit) {
+                        // Deep copy to break reference
+                        setZone(JSON.parse(JSON.stringify(zoneToEdit))); 
+                    } else {
+                        setZone({ name: '', startTime: '08:00', endTime: '16:00', lat: 24.7136, lng: 46.6753, radius: 200, assignedUsers: [] }); 
+                    }
                 } 
             }, [isOpen, zoneToEdit]);
             
             if(!isOpen) return null;
+
             const toggleUser = (uid) => {
                 const current = safeArr(zone.assignedUsers);
+                // Check other zones excluding the current one being edited
                 const otherZones = zones.filter(z => z.id !== (zone.id || 'new')); 
                 const isAssignedElsewhere = otherZones.some(z => safeArr(z.assignedUsers).includes(uid));
-                if (isAssignedElsewhere && !current.includes(uid)) return alert("هذا الموظف مسجل في نطاق آخر بالفعل. لا يمكن تسجيله في نطاقين.");
-                // FIX: Use functional update for toggleUser to prevent stale state
+                
+                if (isAssignedElsewhere && !current.includes(uid)) {
+                    return alert("هذا الموظف مسجل في نطاق آخر بالفعل. لا يمكن تسجيله في نطاقين.");
+                }
                 setZone(prev => ({...prev, assignedUsers: current.includes(uid) ? current.filter(id=>id!==uid) : [...current, uid] }));
             };
+            
             return (
                 <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">{zoneToEdit ? 'تعديل النطاق' : 'إضافة نطاق جديد'}</h3><button onClick={onClose}><Icon name="x"/></button></div>
-                        <div className="grid md:grid-cols-2 gap-4 mb-4"><input className="border p-2 rounded-lg" placeholder="اسم النطاق" value={zone.name} onChange={e=>setZone({...zone, name:e.target.value})}/><div className="flex gap-2"><div className="flex-1"><label className="text-xs block">بداية الدوام</label><input type="time" className="w-full border p-2 rounded-lg" value={zone.startTime} onChange={e=>setZone({...zone, startTime:e.target.value})}/></div><div className="flex-1"><label className="text-xs block">نهاية الدوام</label><input type="time" className="w-full border p-2 rounded-lg" value={zone.endTime} onChange={e=>setZone({...zone, endTime:e.target.value})}/></div></div></div><div className="mb-4"><label className="text-xs block mb-1 font-bold">تحديد الموقع والقطر ({zone.radius}م)</label><MapZoneEditor center={{lat: zone.lat, lng: zone.lng}} radius={zone.radius} onChange={(c, r) => setZone(prev => ({...prev, lat: c.lat, lng: c.lng, radius: r}))} /><input type="range" min="50" max="2000" step="50" className="w-full mt-2 accent-accent-600" value={zone.radius} onChange={e=>setZone({...zone, radius: Number(e.target.value)})} /></div><div className="mb-4 border-t pt-4"><label className="font-bold block mb-2">الموظفين المصرح لهم:</label><div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-lg bg-gray-50">{users.filter(u => u.id !== 'admin').map(u => { const isAssignedHere = safeArr(zone.assignedUsers).includes(u.id); const otherZones = zones.filter(z => z.id !== (zone.id || 'new')); const isAssignedElsewhere = otherZones.some(z => safeArr(z.assignedUsers).includes(u.id)); return ( <label key={u.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${isAssignedElsewhere ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white hover:bg-gray-100'}`}><input type="checkbox" checked={isAssignedHere} onChange={()=>toggleUser(u.id)} disabled={isAssignedElsewhere} className="accent-accent-600"/><span className="text-sm">{u.name} {isAssignedElsewhere && '(مسجل بنطاق آخر)'}</span></label> ); })}</div></div><button onClick={() => onSave(zone)} className="w-full bg-accent-600 text-white py-3 rounded-xl font-bold">حفظ النطاق</button>
+                        <div className="grid md:grid-cols-2 gap-4 mb-4"><input className="border p-2 rounded-lg" placeholder="اسم النطاق" value={zone.name} onChange={e=>setZone(prev=>({...prev, name:e.target.value}))}/><div className="flex gap-2"><div className="flex-1"><label className="text-xs block">بداية الدوام</label><input type="time" className="w-full border p-2 rounded-lg" value={zone.startTime} onChange={e=>setZone(prev=>({...prev, startTime:e.target.value}))}/></div><div className="flex-1"><label className="text-xs block">نهاية الدوام</label><input type="time" className="w-full border p-2 rounded-lg" value={zone.endTime} onChange={e=>setZone(prev=>({...prev, endTime:e.target.value}))}/></div></div></div><div className="mb-4"><label className="text-xs block mb-1 font-bold">تحديد الموقع والقطر ({zone.radius}م)</label><MapZoneEditor center={{lat: zone.lat, lng: zone.lng}} radius={zone.radius} onChange={(c, r) => setZone(prev => ({...prev, lat: c.lat, lng: c.lng, radius: r}))} /><input type="range" min="50" max="2000" step="50" className="w-full mt-2 accent-accent-600" value={zone.radius} onChange={e=>setZone(prev=>({...prev, radius: Number(e.target.value)}))} /></div><div className="mb-4 border-t pt-4"><label className="font-bold block mb-2">الموظفين المصرح لهم:</label><div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-lg bg-gray-50">{users.filter(u => u.id !== 'admin').map(u => { const isAssignedHere = safeArr(zone.assignedUsers).includes(u.id); const otherZones = zones.filter(z => z.id !== (zone.id || 'new')); const isAssignedElsewhere = otherZones.some(z => safeArr(z.assignedUsers).includes(u.id)); return ( <label key={u.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${isAssignedElsewhere ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white hover:bg-gray-100'}`}><input type="checkbox" checked={isAssignedHere} onChange={()=>toggleUser(u.id)} disabled={isAssignedElsewhere} className="accent-accent-600"/><span className="text-sm">{u.name} {isAssignedElsewhere && '(مسجل بنطاق آخر)'}</span></label> ); })}</div></div><button onClick={() => onSave(zone)} className="w-full bg-accent-600 text-white py-3 rounded-xl font-bold">حفظ النطاق</button>
                     </div>
                 </div>
             );
@@ -697,7 +718,7 @@
                         </div>
                         <nav className="flex-1 p-4 space-y-2">
                             <button onClick={()=>{setPage('my_attendance'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='my_attendance'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="fingerprint"/> تسجيلي</button>
-                            {canSeeReports && (<><button onClick={()=>{setPage('live'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='live'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="activity"/> مباشر (Live)</button><button onClick={()=>{setPage('reports'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="file-text"/> التقارير</button><button onClick={()=>{setPage('perms'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='perms'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="check-square"/> إدارة الاستئذانات</button></>)}
+                            {canSeeReports && (<><button onClick={()=>{setPage('live'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='live'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="activity"/> مباشر (Live)</button><button onClick={()=>{setPage('reports'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="file-text"/> التقارير والخصومات</button><button onClick={()=>{setPage('perms'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='perms'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="check-square"/> إدارة الاستئذانات</button></>)}
                             {canManageZones && <button onClick={()=>{setPage('zones'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='zones'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="map"/> النطاقات</button>}
                         </nav>
                         <div className="p-4 border-t"><button onClick={onBack} className="w-full bg-gray-100 text-gray-600 p-2 rounded-lg font-bold flex items-center justify-center gap-2"><Icon name="grid" size={16}/> تبديل التطبيق</button></div>
