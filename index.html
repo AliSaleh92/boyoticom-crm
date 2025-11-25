@@ -92,7 +92,9 @@
         };
         const safeStr = (val) => (val === null || val === undefined) ? '' : String(val);
         const safeArr = (val) => Array.isArray(val) ? val : [];
+        // Helper to format ISO string to time (HH:MM)
         const formatTime = (isoString) => new Date(isoString).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+        // Helper to format ISO string to date (DD/MM/YYYY)
         const formatDate = (isoString) => new Date(isoString).toLocaleDateString('en-GB');
         
         const Logo = ({ size = 40 }) => {
@@ -541,6 +543,7 @@
             const [editingZone, setEditingZone] = useState(null);
             const [myStatus, setMyStatus] = useState('loading'); const [currentZone, setCurrentZone] = useState(null); const [todayLog, setTodayLog] = useState({ in: null, out: null });
             const [dist, setDist] = useState(null);
+            const [sidebarOpen, setSidebarOpen] = useState(false);
             
             // New States for Permission and Confirmation
             const [permModalOpen, setPermModalOpen] = useState(false);
@@ -601,17 +604,28 @@
 
             return (
                 <div className="flex min-h-screen bg-slate-50">
-                    <aside className="w-64 bg-white border-l h-screen sticky top-0 flex flex-col">
-                        <div className="p-6 flex items-center gap-2 font-black text-xl text-brand-900 border-b"><Logo size={32} /> بيوتكم</div>
+                    <aside className={`fixed inset-y-0 right-0 z-50 w-64 bg-white border-l transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-screen ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                        <div className="p-6 flex justify-between items-center gap-2 font-black text-xl text-brand-900 border-b">
+                            <div className="flex items-center gap-2"><Logo size={32} /> بيوتكم</div>
+                            <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-500"><Icon name="x" /></button>
+                        </div>
                         <nav className="flex-1 p-4 space-y-2">
-                            <button onClick={()=>setPage('my_attendance')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='my_attendance'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="fingerprint"/> تسجيلي</button>
-                            {canSeeReports && (<><button onClick={()=>setPage('live')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='live'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="activity"/> مباشر (Live)</button><button onClick={()=>setPage('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="file-text"/> التقارير والخصومات</button><button onClick={()=>setPage('perms')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='perms'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="check-square"/> إدارة الاستئذانات</button></>)}
-                            {canManageZones && <button onClick={()=>setPage('zones')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='zones'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="map"/> النطاقات</button>}
+                            <button onClick={()=>{setPage('my_attendance'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='my_attendance'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="fingerprint"/> تسجيلي</button>
+                            {canSeeReports && (<><button onClick={()=>{setPage('live'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='live'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="activity"/> مباشر (Live)</button><button onClick={()=>{setPage('reports'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="file-text"/> التقارير والخصومات</button><button onClick={()=>{setPage('perms'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='perms'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="check-square"/> إدارة الاستئذانات</button></>)}
+                            {canManageZones && <button onClick={()=>{setPage('zones'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='zones'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="map"/> النطاقات</button>}
                         </nav>
                         <div className="p-4 border-t"><button onClick={onBack} className="w-full bg-gray-100 text-gray-600 p-2 rounded-lg font-bold flex items-center justify-center gap-2"><Icon name="grid" size={16}/> تبديل التطبيق</button></div>
                     </aside>
+                    {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)}></div>}
+                    
                     <main className="flex-1 p-8 overflow-y-auto">
-                        <header className="flex justify-between items-center mb-8"><h2 className="text-2xl font-bold text-brand-900">{page==='my_attendance'?'تسجيل الحضور':page==='live'?'المتواجدون الآن':page==='reports'?'التقارير':'إدارة النطاقات'}</h2><div className="flex items-center gap-2"><div className="text-sm font-bold">{user.name}</div><div className="w-8 h-8 bg-accent-600 rounded-full text-white flex items-center justify-center">{user.name[0]}</div></div></header>
+                        <header className="flex justify-between items-center mb-8">
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg bg-white shadow-sm text-brand-900"><Icon name="menu" /></button>
+                                <h2 className="text-2xl font-bold text-brand-900">{page==='my_attendance'?'تسجيل الحضور':page==='live'?'المتواجدون الآن':page==='reports'?'التقارير':'إدارة النطاقات'}</h2>
+                            </div>
+                            <div className="flex items-center gap-2"><div className="text-sm font-bold">{user.name}</div><div className="w-8 h-8 bg-accent-600 rounded-full text-white flex items-center justify-center">{user.name[0]}</div></div>
+                        </header>
                         
                         {page === 'my_attendance' && (
                             <div className="max-w-2xl mx-auto text-center space-y-6">
