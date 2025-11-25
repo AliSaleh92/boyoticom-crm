@@ -9,6 +9,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* هذا الكود مهم جداً لإظهار الخريطة */
+        .leaflet-pane img {
+            max-width: none !important;
+        }
+        .leaflet-container {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+    </style>
+
 <script type="importmap">
 {
   "imports": {
