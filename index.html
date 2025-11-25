@@ -720,7 +720,10 @@
         };
 
         const AttendanceReports = ({ logs, users, zones, permissions }) => {
-            const [startDate, setStartDate] = useState(''); const [endDate, setEndDate] = useState('');
+            // Set default to today's date
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const [startDate, setStartDate] = useState(todayStr); 
+            const [endDate, setEndDate] = useState(todayStr);
             const [selectedUser, setSelectedUser] = useState(''); // New Filter State
 
             const reportData = logs.slice().reverse().filter(l => { 
