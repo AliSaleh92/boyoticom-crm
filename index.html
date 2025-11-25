@@ -408,10 +408,77 @@
             );
         };
         
+        // --- CRM BACKUP COMPONENT (RESTORED) ---
         const CRMBackup = ({ clients, users, onImport }) => {
              const handleImportFile = (e) => { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { const bstr = evt.target.result; const wb = XLSX.read(bstr, {type:'binary'}); const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); onImport(data); }; reader.readAsBinaryString(file); }; 
              const downloadTemplate = () => { const headers = [{ 'الاسم': 'اسم تجريبي', 'رقم الهاتف': '0500000000', 'المشروع': 'بيوتكم 10' }]; exportToExcel(headers, "Import_Template"); };
-             return ( <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4"><h3 className="font-bold text-lg mb-4">إدارة البيانات</h3><button onClick={() => { const data = { clients, users, date: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "backup.json"; link.click(); }} className="w-full bg-brand-900 text-white p-4 rounded-xl flex justify-center gap-2 font-bold"><Icon name="download" /> تحميل نسخة احتياطية كاملة (JSON)</button><div className="h-px bg-gray-100 my-4"></div><h3 className="font-bold text-lg mb-4">استيراد العملاء</h3><div className="grid grid-cols-2 gap-4"><button onClick={downloadTemplate} className="w-full bg-gray-100 text-gray-700 p-4 rounded-xl flex justify-center gap-2 font-bold hover:bg-gray-200 transition"><Icon name="file-spreadsheet" /> تحميل نموذج الاستيراد</button><div className="relative overflow-hidden w-full"><button className="w-full bg-indigo-600 text-white p-4 rounded-xl flex justify-center gap-2 font-bold hover:bg-indigo-700 transition"><Icon name="upload" /> رفع ملف العملاء (Excel)</button><input type="file" accept=".xlsx" onChange={handleImportFile} className="absolute inset-0 opacity-0 cursor-pointer"/></div></div></div> );
+             return ( 
+                <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+                    <h3 className="font-bold text-lg mb-4">إدارة البيانات</h3>
+                    <button onClick={() => { const data = { clients, users, date: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "backup.json"; link.click(); }} className="w-full bg-brand-900 text-white p-4 rounded-xl flex justify-center gap-2 font-bold"><Icon name="download" /> تحميل نسخة احتياطية كاملة (JSON)</button>
+                    <div className="h-px bg-gray-100 my-4"></div>
+                    <h3 className="font-bold text-lg mb-4">استيراد العملاء</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <button onClick={downloadTemplate} className="w-full bg-gray-100 text-gray-700 p-4 rounded-xl flex justify-center gap-2 font-bold hover:bg-gray-200 transition"><Icon name="file-spreadsheet" /> تحميل نموذج الاستيراد</button>
+                        <div className="relative overflow-hidden w-full">
+                            <button className="w-full bg-indigo-600 text-white p-4 rounded-xl flex justify-center gap-2 font-bold hover:bg-indigo-700 transition"><Icon name="upload" /> رفع ملف العملاء (Excel)</button>
+                            <input type="file" accept=".xlsx" onChange={handleImportFile} className="absolute inset-0 opacity-0 cursor-pointer"/>
+                        </div>
+                    </div>
+                </div> 
+            );
+        };
+
+        // --- 5. CRM APP CONTAINER ---
+        const CRMApp = ({ user, clients, users, onSaveClient, onImport, onBack }) => {
+            const [page, setPage] = useState('dashboard'); 
+            const [modalOpen, setModalOpen] = useState(false); 
+            const [editClient, setEditClient] = useState(null); 
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+
+            const isAdmin = user.role === 'admin'; 
+            const isSupervisor = user.permissions?.crm_role === 'supervisor'; 
+            const canSeeReports = isAdmin || isSupervisor || user.permissions?.crm_reports; 
+            const canBackup = isAdmin; 
+
+            return ( 
+                <div className="flex min-h-screen bg-slate-50">
+                    {/* Sidebar Overlay */}
+                    {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)}></div>}
+                    
+                    {/* Sidebar */}
+                    <aside className={`fixed inset-y-0 right-0 z-50 w-64 bg-white border-l transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-screen ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                        <div className="p-6 flex justify-between items-center gap-2 font-black text-xl text-brand-900 border-b">
+                            <div className="flex items-center gap-2"><Logo size={32} /> بيوتكم</div>
+                            <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-500"><Icon name="x" /></button>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-2">
+                            <button onClick={()=>{setPage('dashboard');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='dashboard'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="layout-dashboard"/> لوحة التحكم</button>
+                            <button onClick={()=>{setPage('clients');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='clients'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="users"/> العملاء</button>
+                            {canSeeReports && (<button onClick={()=>{setPage('reports');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="bar-chart-2"/> التقارير</button>)}
+                            {canBackup && (<button onClick={()=>{setPage('backup');setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='backup'?'bg-brand-900 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="settings"/> الإعدادات</button>)}
+                        </nav>
+                        <div className="p-4 border-t">
+                            <button onClick={onBack} className="w-full bg-gray-100 text-gray-600 p-2 rounded-lg font-bold flex items-center justify-center gap-2"><Icon name="grid" size={16}/> تبديل التطبيق</button>
+                        </div>
+                    </aside>
+
+                    {/* Main Content */}
+                    <main className="flex-1 flex flex-col h-screen overflow-hidden">
+                        <CRMHeader title={page==='dashboard'?'لوحة التحكم':page==='clients'?'العملاء':page==='reports'?'التقارير':'الإعدادات'} clients={clients} onToggleSidebar={()=>setSidebarOpen(true)} />
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="max-w-5xl mx-auto">
+                                {page === 'dashboard' && <CRMDashboard clients={clients} currentUser={user} />}
+                                {page === 'clients' && <CRMClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} onImport={onImport} />}
+                                {page === 'reports' && canSeeReports && <CRMReports clients={clients} users={users} currentUser={user} />}
+                                {page === 'backup' && canBackup && <CRMBackup clients={clients} users={users} onImport={onImport} />}
+                            </div>
+                        </div>
+                    </main>
+                    
+                    {modalOpen && <CRMClientModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} client={editClient} onSave={(d, log)=>{onSaveClient(d, editClient, log);setModalOpen(false)}} users={users} currentUser={user} />}
+                </div> 
+            );
         };
 
         // --- 6. ATTENDANCE SYSTEM ---
