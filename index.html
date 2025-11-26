@@ -982,6 +982,35 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
             );
         };
 
+        // -- Permissions Management for Supervisor --
+        const PermissionsManager = ({ permissions }) => {
+            const updateStatus = (id, status) => {
+                update(ref(db, `permissions/${id}`), { status });
+            };
+            const pending = permissions.filter(p => p.status === 'pending');
+            return (
+                <div className="space-y-4">
+                    <h3 className="font-bold text-xl text-brand-900">طلبات الاستئذان المعلقة</h3>
+                    <div className="grid gap-4">
+                        {pending.length === 0 && <div className="text-center p-8 text-gray-400">لا توجد طلبات جديدة</div>}
+                        {pending.map(p => (
+                            <div key={p.id} className="bg-white p-4 rounded-xl border shadow-sm flex justify-between items-center">
+                                <div>
+                                    <div className="font-bold text-brand-900">{p.userName}</div>
+                                    <div className="text-sm text-gray-500">{p.reason}</div>
+                                    <div className="text-xs text-gray-400 date-en mt-1">{p.date}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={()=>updateStatus(p.id, 'approved')} className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-sm font-bold hover:bg-green-200">موافقة</button>
+                                    <button onClick={()=>updateStatus(p.id, 'rejected')} className="bg-red-100 text-red-700 px-3 py-1 rounded-lg text-sm font-bold hover:bg-red-200">رفض</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
         // --- AttendanceReports UPDATED to include ALL users ---
         const AttendanceReports = ({ logs, users, zones, permissions }) => {
             const todayStr = new Date().toISOString().slice(0, 10);
@@ -1267,7 +1296,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                         </div>
                         <nav className="flex-1 p-4 space-y-2">
                             <button onClick={()=>{setPage('my_attendance'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='my_attendance'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="fingerprint"/> تسجيلي</button>
-                            {canSeeReports && (<><button onClick={()=>{setPage('live'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='live'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="activity"/> مباشر (Live)</button><button onClick={()=>{setPage('reports'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="file-text"/> التقارير والخصومات</button><button onClick={()=>{setPage('perms'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='perms'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="check-square"/> إدارة الاستئذانات</button></>)}
+                            {canSeeReports && (<><button onClick={()=>{setPage('live'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='live'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="activity"/> مباشر (Live)</button><button onClick={()=>{setPage('reports'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='reports'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="file-text"/> التقارير</button><button onClick={()=>{setPage('perms'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='perms'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="check-square"/> إدارة الاستئذان</button></>)}
                             {canManageZones && <button onClick={()=>{setPage('zones'); setSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${page==='zones'?'bg-accent-600 text-white':'text-gray-500 hover:bg-gray-50'}`}><Icon name="map"/> النطاقات</button>}
                         </nav>
                         <div className="p-4 border-t"><button onClick={onBack} className="w-full bg-gray-100 text-gray-600 p-2 rounded-lg font-bold flex items-center justify-center gap-2"><Icon name="grid" size={16}/> تبديل التطبيق</button></div>
@@ -1278,7 +1307,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                         <header className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-3">
                                 <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg bg-white shadow-sm text-brand-900"><Icon name="menu" /></button>
-                                <h2 className="text-2xl font-bold text-brand-900">{page==='my_attendance'?'تسجيل الحضور':page==='live'?'المتواجدون الآن':page==='reports'?'التقارير':'إدارة النطاقات'}</h2>
+                                <h2 className="text-2xl font-bold text-brand-900">{page==='my_attendance'?'تسجيل الحضور':page==='live'?'المتواجدون الآن':page==='reports'?'التقارير':page==='perms'?'إدارة الاستئذان':'إدارة النطاقات'}</h2>
                             </div>
                             <div className="flex items-center gap-2"><div className="text-sm font-bold">{user.name}</div><div className="w-8 h-8 bg-accent-600 rounded-full text-white flex items-center justify-center">{user.name[0]}</div></div>
                         </header>
