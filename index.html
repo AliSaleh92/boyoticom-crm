@@ -573,7 +573,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
             const [startDate, setStartDate] = useState(''); const [endDate, setEndDate] = useState(''); 
             const relevantUsers = useMemo(() => users.filter(u => u.role === 'admin' || u.permissions?.crm_access), [users]);
             const filteredClients = clients.filter(c => { const d = c.dateAdded ? c.dateAdded.slice(0, 10) : ''; return (startDate ? d >= startDate : true) && (endDate ? d <= endDate : true); }); 
-            const reportData = relevantUsers.map(u => { const userClients = filteredClients.filter(c => c.assignedTo === u.name); return { id: u.id, name: u.name, total: userClients.length, sold: userClients.filter(c => c.status === 'Sold').length, deposit: userClients.filter(c => c.status === 'Deposit').length, inProgress: userClients.filter(c => ['New','Contacted1','Contacted2','Contacted3'].includes(c.status)).length }; });
+            const reportData = relevantUsers.map(u => { const userClients = filteredClients.filter(c => c.assignedTo === u.name); return { id: u.id, name: u.name, total: userClients.length, sold: userClients.filter(c => c.status === 'Sold').length, deposit: userClients.filter(c => c.status === 'Deposit').length, inProgress: userClients.filter(c => ['New','Contacted1','Contacted2','Contacted2'].includes(c.status)).length }; });
             const canExport = currentUser.role === 'admin' || currentUser.permissions?.crm_role === 'supervisor';
             const handleExportReports = () => { exportToExcel(reportData, "Employee_Performance_Reports"); };
             return ( <div className="space-y-6"><div className="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap items-center gap-4"><div className="flex items-center gap-2"><span className="text-sm font-bold text-gray-500">من:</span><input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={startDate} onChange={e=>setStartDate(e.target.value)} /></div><div className="flex items-center gap-2"><span className="text-sm font-bold text-gray-500">إلى:</span><input type="date" className="bg-gray-50 border rounded-lg px-3 py-2 outline-none text-sm date-en" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div>{(startDate||endDate)&&<button onClick={()=>{setStartDate('');setEndDate('')}} className="text-xs text-red-500 hover:underline font-bold">إلغاء</button>}{canExport && <button onClick={handleExportReports} className="mr-auto bg-green-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Icon name="file-spreadsheet" size={16}/> تصدير التقرير</button>}</div><div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-right"><thead className="bg-gray-50 text-sm font-bold text-brand-900"><tr><th className="p-4">الموظف (المسند إليه)</th><th className="p-4 text-center">إجمالي العملاء</th><th className="p-4 text-center text-emerald-600">تم البيع</th><th className="p-4 text-center text-amber-600">عربون</th><th className="p-4 text-center text-blue-600">قيد المتابعة</th></tr></thead><tbody className="divide-y">{reportData.map(r=><tr key={r.id} className="hover:bg-gray-50"><td className="p-4"><div className="font-bold text-brand-900">{r.name}</div></td><td className="p-4 text-center font-bold">{r.total}</td><td className="p-4 text-center font-bold text-emerald-600">{r.sold}</td><td className="p-4 text-center font-bold text-amber-600">{r.deposit}</td><td className="p-4 text-center font-bold text-blue-600">{r.inProgress}</td></tr>)}</tbody></table></div></div> );
@@ -917,9 +917,14 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
             );
         };
 
-        // -- New Confirmation Modal for Outside Zone --
-        const ConfirmOutsideModal = ({ isOpen, onClose, onConfirm }) => {
+        // -- New Confirmation Modal for Outside Zone (For OUT action only) --
+        const ConfirmOutsideModal = ({ isOpen, onClose, onConfirm, actionType }) => {
             if (!isOpen) return null;
+            
+            const message = actionType === 'OUT' 
+                ? "سيتم تسجيل خروجك مع ملاحظة أنك خارج النطاق الجغرافي. هل تريد المتابعة؟"
+                : "سيتم تسجيل دخولك مع ملاحظة أنك خارج النطاق الجغرافي المسموح. هل تريد المتابعة؟";
+
             return (
                 <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl text-center animate-slide-up">
@@ -927,7 +932,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                             <Icon name="alert-triangle" size={32}/>
                         </div>
                         <h3 className="font-bold text-lg mb-2 text-brand-900">تنبيه: أنت خارج النطاق!</h3>
-                        <p className="text-gray-500 mb-6">سيتم تسجيل هذا الإجراء مع ملاحظة أنك خارج النطاق الجغرافي المسموح. هل تريد المتابعة؟</p>
+                        <p className="text-gray-500 mb-6">{message}</p>
                         <div className="flex gap-2">
                             <button onClick={onClose} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200">إلغاء</button>
                             <button onClick={onConfirm} className="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 shadow-lg">نعم، سجل</button>
@@ -977,78 +982,144 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
             );
         };
 
+        // --- AttendanceReports UPDATED to include ALL users ---
         const AttendanceReports = ({ logs, users, zones, permissions }) => {
-            // Set default to today's date
             const todayStr = new Date().toISOString().slice(0, 10);
             const [startDate, setStartDate] = useState(todayStr); 
             const [endDate, setEndDate] = useState(todayStr);
-            const [selectedUser, setSelectedUser] = useState(''); // New Filter State
+            const [selectedUser, setSelectedUser] = useState(''); 
 
-            const reportData = logs.slice().reverse().filter(l => { 
-                const logDate = l.timestamp.slice(0, 10); 
-                // Apply filters
-                const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate); 
-                const userMatch = !selectedUser || l.uid === selectedUser;
-                return dateMatch && userMatch;
-            }).reduce((acc, log) => { 
+            // 1. Generate all required dates within the range (assuming a simple date range for simplicity)
+            const dates = [];
+            let currentDate = new Date(startDate);
+            const end = new Date(endDate);
+
+            while (currentDate <= end) {
+                dates.push(currentDate.toISOString().slice(0, 10));
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            // Filter users to include only non-admin users relevant to attendance (if available)
+            const usersForReport = users.filter(u => u.role !== 'admin' && u.permissions?.att_access);
+            if (usersForReport.length === 0) return (
+                <div className="space-y-4">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 items-center">
+                        <div className="flex items-center gap-2"><span className="font-bold text-gray-600 text-sm">من:</span><input type="date" className="border rounded-lg p-2 text-sm" value={startDate} onChange={e=>setStartDate(e.target.value)} /></div>
+                        <div className="flex items-center gap-2"><span className="font-bold text-gray-600 text-sm">إلى:</span><input type="date" className="border rounded-lg p-2 text-sm" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div>
+                        {(startDate || endDate || selectedUser) && <button onClick={()=>{setStartDate(todayStr);setEndDate(todayStr);setSelectedUser('')}} className="text-xs text-red-500 font-bold">مسح</button>}
+                        <button onClick={()=>exportToExcel([], "Attendance_Reports")} className="mr-auto bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm"><Icon name="file-spreadsheet" size={16}/> تصدير</button>
+                    </div>
+                    <div className="text-center py-10 text-gray-400">لا يوجد موظفين مصرح لهم بعرض الحضور.</div>
+                </div>
+            );
+
+
+            // 2. Aggregate logs into daily records
+            const logsByDayAndUser = logs.reduce((acc, log) => { 
                 const date = log.timestamp.slice(0, 10); 
                 const key = `${log.uid}-${date}`; 
                 
-                if (!acc[key]) acc[key] = { uid: log.uid, date: date, user: users.find(u=>u.id===log.uid)?.name, checkIn: '-', checkOut: '-', late: 0, early: 0, hours: 0, inStatus: '', outStatus: '', isOffDay: false }; 
+                if (!acc[key]) acc[key] = { uid: log.uid, date: date, checkIn: '-', checkOut: '-', inStatus: '', outStatus: '' }; 
 
-                // Determine if this day is an off-day for the user
-                const userProfile = users.find(u => u.id === log.uid);
-                const dayOfWeek = new Date(log.timestamp).toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 3); // e.g., 'Fri'
-                
-                if (userProfile && safeArr(userProfile.permissions?.weeklyOffDays).includes(dayOfWeek)) {
-                    acc[key].isOffDay = true;
-                }
-
-                if (log.type === 'IN') { acc[key].checkIn = log.timestamp; acc[key].inStatus = log.locationStatus; } 
-                if (log.type === 'OUT') { acc[key].checkOut = log.timestamp; acc[key].outStatus = log.locationStatus; } 
+                // Use the earliest IN and latest OUT if multiple exist
+                if (log.type === 'IN') { 
+                    if (acc[key].checkIn === '-' || new Date(log.timestamp) < new Date(acc[key].checkIn)) {
+                        acc[key].checkIn = log.timestamp; 
+                        acc[key].inStatus = log.locationStatus;
+                    }
+                } 
+                if (log.type === 'OUT') { 
+                    if (acc[key].checkOut === '-' || new Date(log.timestamp) > new Date(acc[key].checkOut)) {
+                        acc[key].checkOut = log.timestamp; 
+                        acc[key].outStatus = log.locationStatus; 
+                    }
+                } 
                 return acc; 
             }, {});
-            
-            const processedRows = Object.values(reportData).map(row => {
-                let lateText = '-', earlyText = '-', hoursText = '-', deduction = '-';
-                const userProfile = users.find(u => u.id === row.uid);
-                const zone = zones.find(z => safeArr(z.assignedUsers).includes(row.uid));
-                const hasPermission = permissions.find(p => p.uid === row.uid && p.date === row.date && p.status === 'approved');
-                
-                // If it is an official off-day, skip lateness/earliness checks
-                if (row.isOffDay) {
-                    lateText = 'إجازة';
-                    earlyText = 'إجازة';
-                    deduction = 'يوم إجازة أسبوعية';
-                } else {
-                    if (row.checkIn !== '-' && zone) {
-                        const shiftStart = new Date(`${row.date}T${zone.startTime}`); const actualIn = new Date(row.checkIn); const diffLate = (actualIn - shiftStart) / 60000; 
-                        if (diffLate > 15) { lateText = `${Math.round(diffLate)} دقيقة`; if (diffLate > 60) deduction = 'خصم يوم'; else if (diffLate > 30) deduction = 'خصم نصف يوم'; else deduction = 'تنبيه (تأخير)'; }
-                    }
-                    if (row.checkOut !== '-' && zone) {
-                        const shiftEnd = new Date(`${row.date}T${zone.endTime}`); const actualOut = new Date(row.checkOut); const diffEarly = (shiftEnd - actualOut) / 60000;
-                        if (diffEarly > 0) earlyText = `${Math.round(diffEarly)} دقيقة`;
-                    }
-                }
-                
-                if (row.checkIn !== '-' && row.checkOut !== '-') hoursText = calculateDuration(row.checkIn, row.checkOut);
-                
-                // Override deduction if permission approved
-                if(hasPermission) deduction = `تم الاستئذان: ${hasPermission.reason}`;
 
-                // Mark 'إجازة' clearly if it was a non-logged off day
-                if (row.isOffDay && row.checkIn === '-' && row.checkOut === '-') {
-                    deduction = 'يوم إجازة أسبوعية';
-                    hoursText = '-';
-                    lateText = 'إجازة';
-                    earlyText = 'إجازة';
-                } else if (!row.isOffDay && row.checkIn === '-' && row.checkOut === '-') {
-                    // If it was a work day but no log
-                    deduction = 'غياب يوم عمل';
-                }
-                
-                return { ...row, lateText, earlyText, hoursText, deduction };
+            // 3. Populate report rows for ALL users for ALL dates
+            let reportRows = [];
+            usersForReport.forEach(userProfile => {
+                dates.forEach(date => {
+                    const key = `${userProfile.id}-${date}`;
+                    const log = logsByDayAndUser[key] || {};
+                    
+                    // Filter by selected user if set
+                    if (selectedUser && userProfile.id !== selectedUser) return;
+
+                    const row = {
+                        uid: userProfile.id,
+                        user: userProfile.name,
+                        date: date,
+                        checkIn: log.checkIn || '-',
+                        checkOut: log.checkOut || '-',
+                        inStatus: log.inStatus || '',
+                        outStatus: log.outStatus || '',
+                        isOffDay: false,
+                        lateText: '-', earlyText: '-', hoursText: '-', deduction: '-',
+                        zone: zones.find(z => safeArr(z.assignedUsers).includes(userProfile.id))
+                    };
+
+                    const reportDateObj = new Date(date);
+                    const dayOfWeek = reportDateObj.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 3); // e.g., 'Fri'
+                    
+                    if (safeArr(userProfile.permissions?.weeklyOffDays).includes(dayOfWeek)) {
+                        row.isOffDay = true;
+                        row.lateText = 'إجازة';
+                        row.earlyText = 'إجازة';
+                        row.deduction = 'يوم إجازة أسبوعية';
+                    }
+                    
+                    // Check for attendance logs against off days (override default deduction if clocking in on off day)
+                    if (row.checkIn !== '-') {
+                        // Lateness check (only if not off day, or if clocked in but we still want to calculate late based on zone time)
+                        if (!row.isOffDay && row.zone) {
+                            const shiftStart = new Date(`${row.date}T${row.zone.startTime}`); 
+                            const actualIn = new Date(row.checkIn); 
+                            const diffLate = (actualIn - shiftStart) / 60000; 
+                            
+                            if (diffLate > 15) { 
+                                row.lateText = `${Math.round(diffLate)} دقيقة`; 
+                                if (diffLate > 60) row.deduction = 'خصم يوم'; 
+                                else if (diffLate > 30) row.deduction = 'خصم نصف يوم'; 
+                                else row.deduction = 'تنبيه (تأخير)'; 
+                            } else {
+                                row.deduction = '-'; // Clear deduction if on time
+                            }
+                        }
+                    }
+
+                    if (row.checkOut !== '-') {
+                        if (!row.isOffDay && row.zone) {
+                            const shiftEnd = new Date(`${row.date}T${row.zone.endTime}`); 
+                            const actualOut = new Date(row.checkOut); 
+                            const diffEarly = (shiftEnd - actualOut) / 60000;
+                            if (diffEarly > 0) row.earlyText = `${Math.round(diffEarly)} دقيقة`;
+                        }
+                        
+                        // Calculate duration if both checkIn and checkOut exist
+                        if (row.checkIn !== '-') row.hoursText = calculateDuration(row.checkIn, row.checkOut);
+                    }
+                    
+                    // Final check for Absence and Permission
+                    const permission = permissions.find(p => p.uid === row.uid && p.date === row.date && p.status === 'approved');
+
+                    if (permission) {
+                        row.deduction = `تم الاستئذان: ${permission.reason}`;
+                    } else if (row.checkIn === '-' && row.checkOut === '-' && !row.isOffDay) {
+                        row.deduction = 'غياب يوم عمل';
+                    }
+
+
+                    reportRows.push(row);
+                });
             });
+
+            // Re-sort the report rows by date (newest first)
+            reportRows.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+
+            const handleExportReports = () => { exportToExcel(reportRows, "Attendance_Reports"); };
 
             return (
                 <div className="space-y-4">
@@ -1062,42 +1133,16 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                         </div>
                         <div className="flex items-center gap-2"><span className="font-bold text-gray-600 text-sm">من:</span><input type="date" className="border rounded-lg p-2 text-sm" value={startDate} onChange={e=>setStartDate(e.target.value)} /></div>
                         <div className="flex items-center gap-2"><span className="font-bold text-gray-600 text-sm">إلى:</span><input type="date" className="border rounded-lg p-2 text-sm" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div>
-                        {(startDate || endDate || selectedUser) && <button onClick={()=>{setStartDate('');setEndDate('');setSelectedUser('')}} className="text-xs text-red-500 font-bold">مسح</button>}
-                        <button onClick={()=>exportToExcel(processedRows, 'Attendance')} className="mr-auto bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm"><Icon name="file-spreadsheet" size={16}/> تصدير</button>
+                        {(startDate || endDate || selectedUser) && <button onClick={()=>{setStartDate(todayStr);setEndDate(todayStr);setSelectedUser('')}} className="text-xs text-red-500 font-bold">مسح</button>}
+                        <button onClick={handleExportReports} className="mr-auto bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm"><Icon name="file-spreadsheet" size={16}/> تصدير</button>
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-right text-sm"><thead className="bg-gray-50 text-brand-900 font-bold"><tr><th className="p-3">الموظف</th><th className="p-3">التاريخ</th><th className="p-3">دخول</th><th className="p-3 text-red-600">تأخير</th><th className="p-3">خروج</th><th className="p-3 text-orange-600">مبكر</th><th className="p-3 font-black">ساعات العمل</th><th className="p-3 text-red-800">الجزاء / الخصم</th></tr></thead><tbody className="divide-y">{processedRows.map((r, i) => (<tr key={i} className={`hover:bg-gray-50 ${r.isOffDay ? 'bg-gray-50/50' : ''}`}><td className="p-3 font-bold">{r.user}</td><td className="p-3 date-en">{r.date}</td><td className="p-3"><span className="date-en block">{r.checkIn !== '-' ? formatTime(r.checkIn) : '-'}</span>{r.inStatus === 'outside_zone' && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-red-600 font-bold">{r.lateText}</td><td className="p-3"><span className="date-en block">{r.checkOut !== '-' ? formatTime(r.checkOut) : '-'}</span>{r.outStatus === 'outside_zone' && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-orange-600 font-bold">{r.earlyText}</td><td className="p-3 font-black bg-gray-50">{r.hoursText}</td><td className={`p-3 text-xs font-bold ${r.deduction.includes('الاستئذان') || r.deduction.includes('إجازة') ? 'text-green-600' : r.deduction.includes('غياب') ? 'text-red-800' : 'text-amber-700'}`}>{r.deduction}</td></tr>))}</tbody></table></div></div>
-            );
-        };
-
-        // -- Permissions Management for Supervisor --
-        const PermissionsManager = ({ permissions }) => {
-            const updateStatus = (id, status) => {
-                update(ref(db, `permissions/${id}`), { status });
-            };
-            const pending = permissions.filter(p => p.status === 'pending');
-            return (
-                <div className="space-y-4">
-                    <h3 className="font-bold text-xl text-brand-900">طلبات الاستئذان المعلقة</h3>
-                    <div className="grid gap-4">
-                        {pending.length === 0 && <div className="text-center p-8 text-gray-400">لا توجد طلبات جديدة</div>}
-                        {pending.map(p => (
-                            <div key={p.id} className="bg-white p-4 rounded-xl border shadow-sm flex justify-between items-center">
-                                <div>
-                                    <div className="font-bold text-brand-900">{p.userName}</div>
-                                    <div className="text-sm text-gray-500">{p.reason}</div>
-                                    <div className="text-xs text-gray-400 date-en mt-1">{p.date}</div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={()=>updateStatus(p.id, 'approved')} className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-sm font-bold hover:bg-green-200">موافقة</button>
-                                    <button onClick={()=>updateStatus(p.id, 'rejected')} className="bg-red-100 text-red-700 px-3 py-1 rounded-lg text-sm font-bold hover:bg-red-200">رفض</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-right text-sm"><thead className="bg-gray-50 text-brand-900 font-bold"><tr><th className="p-3">الموظف</th><th className="p-3">التاريخ</th><th className="p-3">دخول</th><th className="p-3 text-red-600">تأخير</th><th className="p-3">خروج</th><th className="p-3 text-orange-600">مبكر</th><th className="p-3 font-black">ساعات العمل</th><th className="p-3 text-red-800">الجزاء / الخصم</th></tr></thead><tbody className="divide-y">{reportRows.map((r, i) => (<tr key={i} className={`hover:bg-gray-50 ${r.isOffDay ? 'bg-gray-50/50' : ''}`}><td className="p-3 font-bold">{r.user}</td><td className="p-3 date-en">{r.date}</td><td className="p-3"><span className="date-en block">{r.checkIn !== '-' ? formatTime(r.checkIn) : '-'}</span>{(r.inStatus === 'outside_zone' && r.checkIn !== '-') && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-red-600 font-bold">{r.lateText}</td><td className="p-3"><span className="date-en block">{r.checkOut !== '-' ? formatTime(r.checkOut) : '-'}</span>{(r.outStatus === 'outside_zone' && r.checkOut !== '-') && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-orange-600 font-bold">{r.earlyText}</td><td className="p-3 font-black bg-gray-50">{r.hoursText}</td><td className={`p-3 text-xs font-bold ${r.deduction.includes('الاستئذان') || r.deduction.includes('إجازة') ? 'text-green-600' : r.deduction.includes('غياب') ? 'text-red-800' : 'text-amber-700'}`}>{r.deduction}</td></tr>))}</tbody></table></div></div>
                 </div>
             );
         };
 
+
+        // --- AttendanceApp logic updated for ConfirmOutsideModal actionType ---
         const AttendanceApp = ({ user, zones, usersList, logs, permissions, onBack }) => {
             const isAdmin = user.role === 'admin'; const isSupervisor = user.permissions?.att_role === 'supervisor'; 
             const canSeeReports = isAdmin || isSupervisor || user.permissions?.att_reports; const canManageZones = isAdmin || user.permissions?.att_zones;
@@ -1294,7 +1339,8 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                         zoneToEdit={editingZone} 
                     />
                     <PermissionModal isOpen={permModalOpen} onClose={()=>setPermModalOpen(false)} onSend={handlePermissionRequest} />
-                    <ConfirmOutsideModal isOpen={outsideConfirmOpen} onClose={()=>setOutsideConfirmOpen(false)} onConfirm={confirmOutside} />
+                    {/* Passing actionType to ConfirmOutsideModal */}
+                    <ConfirmOutsideModal isOpen={outsideConfirmOpen} onClose={()=>setOutsideConfirmOpen(false)} onConfirm={confirmOutside} actionType={pendingAction} />
                 </div>
             );
         };
