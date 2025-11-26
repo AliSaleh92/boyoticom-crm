@@ -1689,11 +1689,16 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
 
         const PMApp = ({ user, users, projects, tasks, onBack }) => {
             const [page, setPage] = useState('dashboard');
+            // REMOVING unused state variables: newProjectName and newTask
+            // const [newProjectName, setNewProjectName] = useState('');
+            // const [newTask, setNewTask] = useState({ title: '', projectId: '', assignedTo: '', status: 'todo' });
+            
             // New states for the advanced task modal
             const [modalOpen, setModalOpen] = useState(false);
             const [editingTask, setEditingTask] = useState(null);
             const [sidebarOpen, setSidebarOpen] = useState(false);
-
+            const [newProjectName, setNewProjectName] = useState(''); // Re-added locally for project creation input
+            
             // Helper for Kanban
             const getTasksByStatus = (status) => tasks.filter(t => t.status === status);
 
