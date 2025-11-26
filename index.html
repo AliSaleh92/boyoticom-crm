@@ -109,6 +109,26 @@
         const exportToExcel = (data, fileName) => { const worksheet = XLSX.utils.json_to_sheet(data); const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1"); XLSX.writeFile(workbook, `${fileName}.xlsx`); };
         const calculateDuration = (start, end) => { if (!start || !end) return '-'; const diffMs = new Date(end) - new Date(start); const diffHrs = Math.floor((diffMs % 86400000) / 3600000); const diffMins = Math.round(((diffMs % 86400000) % 3600000) / 60000); return `${diffHrs}س ${diffMins}د`; };
 
+        // --- SUPPORT FOOTER COMPONENT ---
+        const SupportFooter = () => (
+            <div className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur border-t border-gray-200 py-2 px-4 flex flex-wrap justify-center items-center gap-4 text-[11px] text-gray-500 z-[100] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                <span className="font-bold text-brand-900">للدعم الفني:</span>
+                <div className="flex items-center gap-4">
+                    <a href="https://wa.me/966567501919" target="_blank" className="flex items-center gap-1.5 hover:text-green-600 transition group" title="WhatsApp">
+                        <div className="bg-green-50 text-green-600 p-1 rounded-full group-hover:bg-green-600 group-hover:text-white transition"><Icon name="message-circle" size={12}/></div>
+                        <span className="dir-ltr font-mono font-bold">056 750 1919</span>
+                    </a>
+                    <a href="tel:0567501919" className="flex items-center gap-1.5 hover:text-blue-600 transition group" title="Call">
+                        <div className="bg-blue-50 text-blue-600 p-1 rounded-full group-hover:bg-blue-600 group-hover:text-white transition"><Icon name="phone" size={12}/></div>
+                    </a>
+                    <a href="mailto:asaleh@boyoticom.com" className="flex items-center gap-1.5 hover:text-red-600 transition group" title="Email">
+                        <div className="bg-red-50 text-red-600 p-1 rounded-full group-hover:bg-red-600 group-hover:text-white transition"><Icon name="mail" size={12}/></div>
+                        <span className="font-mono font-bold">asaleh@boyoticom.com</span>
+                    </a>
+                </div>
+            </div>
+        );
+
         // --- CONSTANTS ---
         const STATUS_LIST = [ { key: 'New', label: 'عميل جديد', color: 'bg-blue-50 text-blue-700 border-blue-200' }, { key: 'Contacted1', label: 'تم التواصل 1', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' }, { key: 'Contacted2', label: 'تم التواصل 2', color: 'bg-purple-50 text-purple-700 border-purple-200' }, { key: 'Contacted3', label: 'تم التواصل 3', color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' }, { key: 'Deposit', label: 'دفع عربون', color: 'bg-amber-50 text-amber-700 border-amber-200' }, { key: 'Sold', label: 'تم البيع', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }, { key: 'Cancelled', label: 'ملغي', color: 'bg-red-50 text-red-700 border-red-200' }, ];
         const PROJECT_LIST = ["بيوتكم 10", "بيوتكم 11", "بيوتكم 12", "بيوتكم 13", "بيوتكم 14"];
@@ -119,8 +139,8 @@
             const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
             const handleLogin = async (e) => { e.preventDefault(); setLoading(true); setError(''); try { await signInWithEmailAndPassword(auth, email, password); } catch (err) { setError('البريد أو كلمة المرور غير صحيحة'); setLoading(false); } };
             return (
-                <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4">
-                    <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md text-center">
+                <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-4 pb-20">
+                    <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md text-center relative z-10">
                         <div className="mx-auto flex items-center justify-center mb-6"><Logo size={80} /></div>
                         <h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم ERP</h1>
                         <p className="text-gray-500 mb-8">بوابة الموظفين الموحدة</p>
@@ -131,6 +151,7 @@
                             <button disabled={loading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg disabled:opacity-70">{loading ? 'جاري الدخول...' : 'تسجيل الدخول'}</button>
                         </form>
                     </div>
+                    <SupportFooter />
                 </div>
             );
         };
@@ -307,13 +328,13 @@
             const canAccessPM = isAdmin || p.pm_access;
 
             return (
-                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 relative">
+                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 relative pb-20">
                     {isAdmin && (
                         <div className="absolute top-6 right-6 flex gap-2 z-10">
                             <button onClick={()=>setShowUserManager(true)} className="bg-brand-900 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl hover:bg-brand-800 transition transform hover:scale-105"><Icon name="users" size={20}/> <span>إدارة الموظفين</span></button>
                         </div>
                     )}
-                    <div className="max-w-5xl w-full">
+                    <div className="max-w-5xl w-full relative z-10">
                         <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
                             <div className="flex items-center gap-5"><div className="w-20 h-20 bg-brand-900 rounded-2xl text-white flex items-center justify-center text-3xl font-black shadow-2xl shadow-brand-900/30"><Logo size={60} /></div><div><h1 className="text-3xl font-black text-brand-900 mb-1">مرحباً، {user.name} 👋</h1><p className="text-gray-500 font-medium">{isAdmin ? 'لوحة تحكم المدير العام' : 'اختر النظام للمتابعة'}</p></div></div>
                             <button onClick={()=>signOut(auth)} className="text-red-500 bg-red-50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-100 transition"><Icon name="log-out"/> <span>خروج</span></button>
@@ -333,6 +354,7 @@
                         </div>
                     </div>
                     {showUserManager && <UserManagerMain users={users} currentUser={user} onClose={()=>setShowUserManager(false)} onLoginAs={onLoginAs} />}
+                    <SupportFooter />
                 </div>
             );
         };
@@ -489,7 +511,7 @@
                     {/* Main Content */}
                     <main className="flex-1 flex flex-col h-screen overflow-hidden">
                         <CRMHeader title={page==='dashboard'?'لوحة التحكم':page==='clients'?'العملاء':page==='reports'?'التقارير':'الإعدادات'} clients={clients} onToggleSidebar={()=>setSidebarOpen(true)} />
-                        <div className="flex-1 overflow-y-auto p-6">
+                        <div className="flex-1 overflow-y-auto p-6 pb-20"> {/* Added pb-20 for footer space */}
                             <div className="max-w-5xl mx-auto">
                                 {page === 'dashboard' && <CRMDashboard clients={clients} currentUser={user} />}
                                 {page === 'clients' && <CRMClientList clients={clients} users={users} currentUser={user} onAdd={()=>{setEditClient(null);setModalOpen(true)}} onEdit={(c)=>{setEditClient(c);setModalOpen(true)}} onImport={onImport} />}
@@ -498,6 +520,7 @@
                             </div>
                         </div>
                     </main>
+                    <SupportFooter />
                     
                     {modalOpen && <CRMClientModal isOpen={modalOpen} onClose={()=>setModalOpen(false)} client={editClient} onSave={(d, log)=>{onSaveClient(d, editClient, log);setModalOpen(false)}} users={users} currentUser={user} />}
                 </div> 
@@ -920,7 +943,7 @@
                     </aside>
                     {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)}></div>}
                     
-                    <main className="flex-1 p-8 overflow-y-auto">
+                    <main className="flex-1 p-8 overflow-y-auto pb-20"> {/* Added pb-20 */}
                         <header className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-3">
                                 <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg bg-white shadow-sm text-brand-900"><Icon name="menu" /></button>
@@ -1001,6 +1024,7 @@
                             </>
                         )}
                     </main>
+                    <SupportFooter />
                     <ZoneModal 
                         key={editingZone ? editingZone.id : 'new_zone_modal'} 
                         isOpen={modalOpen} 
@@ -1083,7 +1107,7 @@
                             <div className="flex items-center gap-2"><div className="text-sm font-bold">{user.name}</div><div className="w-8 h-8 bg-pm-600 rounded-full text-white flex items-center justify-center font-bold">{user.name[0]}</div></div>
                         </header>
 
-                        <div className="flex-1 overflow-y-auto p-6">
+                        <div className="flex-1 overflow-y-auto p-6 pb-20"> {/* Added pb-20 */}
                             <div className="max-w-6xl mx-auto">
                                 {page === 'dashboard' && (
                                     <div className="space-y-6">
@@ -1258,7 +1282,106 @@
                             </div>
                         </div>
                     </main>
+                    <SupportFooter />
                 </div>
+            );
+        };
+
+        // --- 7. MAIN ORCHESTRATOR ---
+        const App = () => {
+            const [user, setUser] = useState(null); 
+            const [dbUser, setDbUser] = useState(null); 
+            const [originalAdmin, setOriginalAdmin] = useState(null); // For impersonation
+            const [currentApp, setCurrentApp] = useState('portal'); 
+            const [clients, setClients] = useState([]); 
+            const [users, setUsers] = useState([]); 
+            const [zones, setZones] = useState([]); 
+            const [logs, setLogs] = useState([]); 
+            const [permissions, setPermissions] = useState([]); 
+            const [projects, setProjects] = useState([]);
+            const [tasks, setTasks] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => { 
+                const unsub = onAuthStateChanged(auth, u => { 
+                    if (u) { 
+                        setUser(u); 
+                        onValue(ref(db, 'users'), s => { 
+                            const data = s.val() || {}; 
+                            const list = Object.keys(data).map(k => ({ id: k, ...data[k] })); 
+                            setUsers(list); 
+                            
+                            // If not impersonating, load actual user profile
+                            if (!originalAdmin) {
+                                const profile = list.find(x => x.email.toLowerCase() === u.email.toLowerCase()); 
+                                if (u.email.toLowerCase() === 'asleh@boyoticom.com') { 
+                                    setDbUser({ ...profile, id: u.uid, role: 'admin', name: 'Ali Saleh', email: u.email }); 
+                                } else { 
+                                    setDbUser(profile ? { ...profile, id: u.uid } : { id: u.uid, email: u.email, role: 'employee', name: 'مستخدم جديد' }); 
+                                }
+                            }
+                        }); 
+                        onValue(ref(db, 'clients'), s => setClients(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})).reverse() : [])); 
+                        onValue(ref(db, 'zones'), s => setZones(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : [])); 
+                        onValue(ref(db, 'attendance'), s => setLogs(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : [])); 
+                        onValue(ref(db, 'permissions'), s => setPermissions(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : [])); 
+                        onValue(ref(db, 'projects'), s => setProjects(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []));
+                        onValue(ref(db, 'tasks'), s => setTasks(s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []));
+                    } else { 
+                        setUser(null); setDbUser(null); setOriginalAdmin(null);
+                    } 
+                    setLoading(false); 
+                }); 
+                return () => unsub(); 
+            }, [originalAdmin]); // Re-run effect if impersonation status changes
+
+            const handleLoginAs = (targetUser) => {
+                if(dbUser.role !== 'admin') return;
+                setOriginalAdmin(dbUser);
+                setDbUser(targetUser);
+                setCurrentApp('portal');
+            };
+
+            const handleRevertLogin = () => {
+                if(originalAdmin) {
+                    setDbUser(originalAdmin);
+                    setOriginalAdmin(null);
+                    setCurrentApp('portal');
+                }
+            };
+
+            const handleSaveClient = (data, existing, log) => { 
+                const payload = { ...data, assignedTo: safeStr(data.assignedTo), projects: safeArr(data.projects) }; 
+                if (existing) {
+                    const { history, notes, ...updatePayload } = payload;
+                    update(ref(db, `clients/${existing.id}`), updatePayload);
+                    if(log) push(ref(db, `clients/${existing.id}/history`), log);
+                } else { 
+                    push(ref(db, 'clients'), { ...payload, dateAdded: new Date().toISOString(), addedBy: dbUser.email }); 
+                } 
+            };
+            
+            const handleImport = (data) => { if(!confirm(`سيتم استيراد ${data.length} عميل. هل أنت متأكد؟`)) return; data.forEach(row => { push(ref(db, 'clients'), { name: row['الاسم']||row['Name']||'No Name', phone: row['رقم الهاتف']||row['Phone']||'', projects: [row['المشروع']||''], status: 'New', addedBy: dbUser.email, dateAdded: new Date().toISOString() }); }); alert('تم الاستيراد بنجاح!'); };
+            
+            if (loading) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
+            if (!user) return <Login />;
+            if (!dbUser) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
+
+            return (
+                <>
+                    {originalAdmin && (
+                        <div className="bg-orange-500 text-white px-4 py-2 text-center font-bold flex justify-between items-center sticky top-0 z-[60]">
+                            <span>⚠️ أنت الآن تتصفح بصلاحيات: {dbUser.name}</span>
+                            <button onClick={handleRevertLogin} className="bg-white text-orange-600 px-3 py-1 rounded text-xs font-black hover:bg-orange-50">العودة لحسابي</button>
+                        </div>
+                    )}
+                    {(() => {
+                        if (currentApp === 'crm') return <CRMApp user={dbUser} clients={clients} users={users} onSaveClient={handleSaveClient} onImport={handleImport} onBack={() => setCurrentApp('portal')} />;
+                        if (currentApp === 'attendance') return <AttendanceApp user={dbUser} zones={zones} usersList={users} logs={logs} permissions={permissions} onBack={() => setCurrentApp('portal')} />;
+                        if (currentApp === 'pm') return <PMApp user={dbUser} users={users} projects={projects} tasks={tasks} onBack={() => setCurrentApp('portal')} />;
+                        return <Portal user={dbUser} users={users} onSelectApp={setCurrentApp} onLoginAs={handleLoginAs} />;
+                    })()}
+                </>
             );
         };
 
