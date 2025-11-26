@@ -115,6 +115,10 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
 
         const exportToExcel = (data, fileName) => { const worksheet = XLSX.utils.json_to_sheet(data); const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1"); XLSX.writeFile(workbook, `${fileName}.xlsx`); };
         const calculateDuration = (start, end) => { if (!start || !end) return '-'; const diffMs = new Date(end) - new Date(start); const diffHrs = Math.floor((diffMs % 86400000) / 3600000); const diffMins = Math.round(((diffMs % 86400000) % 3600000) / 60000); return `${diffHrs}س ${diffMins}د`; };
+        
+        // أيام الأسبوع باللغة الإنجليزية
+        const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const WEEK_DAYS_AR = { 'Sun': 'الأحد', 'Mon': 'الاثنين', 'Tue': 'الثلاثاء', 'Wed': 'الأربعاء', 'Thu': 'الخميس', 'Fri': 'الجمعة', 'Sat': 'السبت' };
 
         // --- INSTALL INSTRUCTIONS MODAL (Keep the modal logic for manual iOS/Android instructions) ---
         const InstallModal = ({ isOpen, onClose, platform }) => {
@@ -305,6 +309,8 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
             const [crmRole, setCrmRole] = useState(user?.permissions?.crm_role || 'none');
             const [attRole, setAttRole] = useState(user?.permissions?.att_role || 'none');
             const [pmRole, setPmRole] = useState(user?.permissions?.pm_role || 'none');
+            // New state for weekly off days
+            const [offDays, setOffDays] = useState(safeArr(user?.permissions?.weeklyOffDays));
 
             useEffect(() => {
                 if(user) {
@@ -312,8 +318,15 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                     setCrmRole(user.permissions?.crm_role || 'none');
                     setAttRole(user.permissions?.att_role || 'none');
                     setPmRole(user.permissions?.pm_role || 'none');
+                    setOffDays(safeArr(user.permissions?.weeklyOffDays));
                 }
             }, [user]);
+            
+            const handleToggleOffDay = (day) => {
+                setOffDays(prev => 
+                    prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                );
+            };
 
             if (!isOpen || !user) return null;
 
@@ -329,6 +342,8 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                     att_role: attRole,
                     att_reports: attRole === 'supervisor',
                     att_zones: attRole === 'supervisor',
+                    // New: Save off days
+                    weeklyOffDays: offDays,
 
                     pm_access: pmRole !== 'none',
                     pm_role: pmRole
@@ -353,6 +368,25 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                                 <input className="w-full border rounded p-3" placeholder="الاسم الثلاثي" value={localUser.name} onChange={e=>setLocalUser({...localUser, name:e.target.value})} />
                                 <input className="w-full border rounded p-3 text-right date-en" placeholder="البريد الإلكتروني" value={localUser.email} onChange={e=>setLocalUser({...localUser, email:e.target.value})} />
                             </div>
+
+                            {/* New: Weekly Off Days Selector */}
+                            <div className="border rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-3 text-brand-900 font-bold"><Icon name="calendar-off"/> أيام الإجازة الأسبوعية</div>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {WEEK_DAYS.map(day => (
+                                        <button 
+                                            key={day}
+                                            onClick={() => handleToggleOffDay(day)} 
+                                            className={`p-2 rounded border text-sm font-bold transition ${offDays.includes(day) ? 'bg-red-500 text-white' : 'bg-white hover:bg-gray-100'}`}
+                                        >
+                                            {WEEK_DAYS_AR[day]}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-3">سيتم تجاهل احتساب الدوام في هذه الأيام.</p>
+                            </div>
+                            {/* End New Section */}
+
                             <div className="border rounded-xl p-4">
                                 <div className="flex items-center gap-2 mb-3 text-crm-600 font-bold"><Icon name="layout-grid"/> نظام CRM</div>
                                 <div className="grid grid-cols-3 gap-2">
@@ -394,9 +428,10 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
 
             const handleSaveNew = (userData) => {
                 if(!userData.uid) return alert('UID مطلوب');
-                set(ref(db, `users/${userData.uid}`), { name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none'} }).then(() => {
+                // Updated initial permissions to include weeklyOffDays
+                set(ref(db, `users/${userData.uid}`), { name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', weeklyOffDays: ['Fri']} }).then(() => {
                     setAddModal(false);
-                    setEditUser({ id: userData.uid, name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none'} }); 
+                    setEditUser({ id: userData.uid, name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', weeklyOffDays: ['Fri']} }); 
                 }).catch(err => { console.error("Error", err); alert("فشل حفظ المستخدم الجديد."); });
             };
 
@@ -955,27 +990,63 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                 const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate); 
                 const userMatch = !selectedUser || l.uid === selectedUser;
                 return dateMatch && userMatch;
-            }).reduce((acc, log) => { const date = log.timestamp.slice(0, 10); const key = `${log.uid}-${date}`; if (!acc[key]) acc[key] = { uid: log.uid, date: date, user: users.find(u=>u.id===log.uid)?.name, checkIn: '-', checkOut: '-', late: 0, early: 0, hours: 0, inStatus: '', outStatus: '' }; if (log.type === 'IN') { acc[key].checkIn = log.timestamp; acc[key].inStatus = log.locationStatus; } if (log.type === 'OUT') { acc[key].checkOut = log.timestamp; acc[key].outStatus = log.locationStatus; } return acc; }, {});
+            }).reduce((acc, log) => { 
+                const date = log.timestamp.slice(0, 10); 
+                const key = `${log.uid}-${date}`; 
+                
+                if (!acc[key]) acc[key] = { uid: log.uid, date: date, user: users.find(u=>u.id===log.uid)?.name, checkIn: '-', checkOut: '-', late: 0, early: 0, hours: 0, inStatus: '', outStatus: '', isOffDay: false }; 
+
+                // Determine if this day is an off-day for the user
+                const userProfile = users.find(u => u.id === log.uid);
+                const dayOfWeek = new Date(log.timestamp).toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 3); // e.g., 'Fri'
+                
+                if (userProfile && safeArr(userProfile.permissions?.weeklyOffDays).includes(dayOfWeek)) {
+                    acc[key].isOffDay = true;
+                }
+
+                if (log.type === 'IN') { acc[key].checkIn = log.timestamp; acc[key].inStatus = log.locationStatus; } 
+                if (log.type === 'OUT') { acc[key].checkOut = log.timestamp; acc[key].outStatus = log.locationStatus; } 
+                return acc; 
+            }, {});
             
             const processedRows = Object.values(reportData).map(row => {
                 let lateText = '-', earlyText = '-', hoursText = '-', deduction = '-';
+                const userProfile = users.find(u => u.id === row.uid);
                 const zone = zones.find(z => safeArr(z.assignedUsers).includes(row.uid));
-                // Find approved permission for this user and date
                 const hasPermission = permissions.find(p => p.uid === row.uid && p.date === row.date && p.status === 'approved');
-
-                if (row.checkIn !== '-' && zone) {
-                    const shiftStart = new Date(`${row.date}T${zone.startTime}`); const actualIn = new Date(row.checkIn); const diffLate = (actualIn - shiftStart) / 60000; 
-                    if (diffLate > 15) { lateText = `${Math.round(diffLate)} دقيقة`; if (diffLate > 60) deduction = 'خصم يوم'; else if (diffLate > 30) deduction = 'خصم نصف يوم'; else deduction = 'تنبيه (تأخير)'; }
+                
+                // If it is an official off-day, skip lateness/earliness checks
+                if (row.isOffDay) {
+                    lateText = 'إجازة';
+                    earlyText = 'إجازة';
+                    deduction = 'يوم إجازة أسبوعية';
+                } else {
+                    if (row.checkIn !== '-' && zone) {
+                        const shiftStart = new Date(`${row.date}T${zone.startTime}`); const actualIn = new Date(row.checkIn); const diffLate = (actualIn - shiftStart) / 60000; 
+                        if (diffLate > 15) { lateText = `${Math.round(diffLate)} دقيقة`; if (diffLate > 60) deduction = 'خصم يوم'; else if (diffLate > 30) deduction = 'خصم نصف يوم'; else deduction = 'تنبيه (تأخير)'; }
+                    }
+                    if (row.checkOut !== '-' && zone) {
+                        const shiftEnd = new Date(`${row.date}T${zone.endTime}`); const actualOut = new Date(row.checkOut); const diffEarly = (shiftEnd - actualOut) / 60000;
+                        if (diffEarly > 0) earlyText = `${Math.round(diffEarly)} دقيقة`;
+                    }
                 }
-                if (row.checkOut !== '-' && zone) {
-                    const shiftEnd = new Date(`${row.date}T${zone.endTime}`); const actualOut = new Date(row.checkOut); const diffEarly = (shiftEnd - actualOut) / 60000;
-                    if (diffEarly > 0) earlyText = `${Math.round(diffEarly)} دقيقة`;
-                }
+                
                 if (row.checkIn !== '-' && row.checkOut !== '-') hoursText = calculateDuration(row.checkIn, row.checkOut);
                 
                 // Override deduction if permission approved
                 if(hasPermission) deduction = `تم الاستئذان: ${hasPermission.reason}`;
 
+                // Mark 'إجازة' clearly if it was a non-logged off day
+                if (row.isOffDay && row.checkIn === '-' && row.checkOut === '-') {
+                    deduction = 'يوم إجازة أسبوعية';
+                    hoursText = '-';
+                    lateText = 'إجازة';
+                    earlyText = 'إجازة';
+                } else if (!row.isOffDay && row.checkIn === '-' && row.checkOut === '-') {
+                    // If it was a work day but no log
+                    deduction = 'غياب يوم عمل';
+                }
+                
                 return { ...row, lateText, earlyText, hoursText, deduction };
             });
 
@@ -994,7 +1065,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                         {(startDate || endDate || selectedUser) && <button onClick={()=>{setStartDate('');setEndDate('');setSelectedUser('')}} className="text-xs text-red-500 font-bold">مسح</button>}
                         <button onClick={()=>exportToExcel(processedRows, 'Attendance')} className="mr-auto bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm"><Icon name="file-spreadsheet" size={16}/> تصدير</button>
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-right text-sm"><thead className="bg-gray-50 text-brand-900 font-bold"><tr><th className="p-3">الموظف</th><th className="p-3">التاريخ</th><th className="p-3">دخول</th><th className="p-3 text-red-600">تأخير</th><th className="p-3">خروج</th><th className="p-3 text-orange-600">مبكر</th><th className="p-3 font-black">ساعات العمل</th><th className="p-3 text-red-800">الجزاء / الخصم</th></tr></thead><tbody className="divide-y">{processedRows.map((r, i) => (<tr key={i} className="hover:bg-gray-50"><td className="p-3 font-bold">{r.user}</td><td className="p-3 date-en">{r.date}</td><td className="p-3"><span className="date-en block">{r.checkIn !== '-' ? formatTime(r.checkIn) : '-'}</span>{r.inStatus === 'outside_zone' && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-red-600 font-bold">{r.lateText}</td><td className="p-3"><span className="date-en block">{r.checkOut !== '-' ? formatTime(r.checkOut) : '-'}</span>{r.outStatus === 'outside_zone' && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-orange-600 font-bold">{r.earlyText}</td><td className="p-3 font-black bg-gray-50">{r.hoursText}</td><td className={`p-3 text-xs font-bold ${r.deduction.includes('الاستئذان') ? 'text-green-600' : 'text-red-800'}`}>{r.deduction}</td></tr>))}</tbody></table></div></div>
+                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-right text-sm"><thead className="bg-gray-50 text-brand-900 font-bold"><tr><th className="p-3">الموظف</th><th className="p-3">التاريخ</th><th className="p-3">دخول</th><th className="p-3 text-red-600">تأخير</th><th className="p-3">خروج</th><th className="p-3 text-orange-600">مبكر</th><th className="p-3 font-black">ساعات العمل</th><th className="p-3 text-red-800">الجزاء / الخصم</th></tr></thead><tbody className="divide-y">{processedRows.map((r, i) => (<tr key={i} className={`hover:bg-gray-50 ${r.isOffDay ? 'bg-gray-50/50' : ''}`}><td className="p-3 font-bold">{r.user}</td><td className="p-3 date-en">{r.date}</td><td className="p-3"><span className="date-en block">{r.checkIn !== '-' ? formatTime(r.checkIn) : '-'}</span>{r.inStatus === 'outside_zone' && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-red-600 font-bold">{r.lateText}</td><td className="p-3"><span className="date-en block">{r.checkOut !== '-' ? formatTime(r.checkOut) : '-'}</span>{r.outStatus === 'outside_zone' && <span className="text-[10px] text-red-500 font-bold block">(خارج النطاق)</span>}</td><td className="p-3 text-orange-600 font-bold">{r.earlyText}</td><td className="p-3 font-black bg-gray-50">{r.hoursText}</td><td className={`p-3 text-xs font-bold ${r.deduction.includes('الاستئذان') || r.deduction.includes('إجازة') ? 'text-green-600' : r.deduction.includes('غياب') ? 'text-red-800' : 'text-amber-700'}`}>{r.deduction}</td></tr>))}</tbody></table></div></div>
             );
         };
 
@@ -1787,9 +1858,15 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                             if (!originalAdmin) {
                                 const profile = list.find(x => x.email.toLowerCase() === u.email.toLowerCase()); 
                                 if (u.email.toLowerCase() === 'asleh@boyoticom.com') { 
-                                    setDbUser({ ...profile, id: u.uid, role: 'admin', name: 'Ali Saleh', email: u.email }); 
+                                    setDbUser({ ...profile, id: u.uid, role: 'admin', name: 'Ali Saleh', email: u.email, permissions: {weeklyOffDays: safeArr(profile?.permissions?.weeklyOffDays)}}); 
                                 } else { 
-                                    setDbUser(profile ? { ...profile, id: u.uid } : { id: u.uid, email: u.email, role: 'employee', name: 'مستخدم جديد' }); 
+                                    // Ensure default off days are set for new users (if permissions doesn't exist yet)
+                                    const userPermissions = profile?.permissions || {};
+                                    if (!userPermissions.weeklyOffDays) {
+                                        userPermissions.weeklyOffDays = ['Fri']; // Default to Friday off
+                                    }
+
+                                    setDbUser(profile ? { ...profile, id: u.uid, permissions: userPermissions } : { id: u.uid, email: u.email, role: 'employee', name: 'مستخدم جديد', permissions: {weeklyOffDays: ['Fri']} }); 
                                 }
                             }
                         }); 
