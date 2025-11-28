@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" translate="no">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="google" content="notranslate" />
+    <meta name="theme-color" content="#2C3340" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Boyoticom Portal</title>
+    
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiQm95b3RpY29tIEVSUCIsInNob3J0X25hbWUiOiJCb3lvdGljb20iLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI2Y4ZmFmYyIsInRoZW1lX2NvbG9yIjoiIzJDMzM0MCIsImljb25zIjpbeyJzcmMiOiJodHRwczovL2Nkbi1pY29ucy1wbmcuZmxhdGljb24uY29tLzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiIxOTJ4MTkyIiwidHlwZSI6ImltYWdlL3BuZyJ9LHsic3JjIjoiaHR0cHM6Ly9jZG4taWNvbnMt
+c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlwZSI6ImltYWdlL3BuZyJ9XSwiY2FjaGUiOiIxNjk5OTI2ODQwIn0=" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/9563/9563326.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: { 900: '#2C3340', 800: '#1e232e', 50: '#f0f9ff' },
+              accent: { 400: '#E6BC76', 500: '#CE9B52', 600: '#b0823e' },
+              crm: { 500: '#6366f1', 600: '#4f46e5' },
+              pm: { 500: '#0d9488', 600: '#0f766e', 50: '#f0fdfa' }
+            },
+            fontFamily: { sans: ['Cairo', 'sans-serif'] }
+          }
+        }
+      }
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+      body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; color: #2C3340; }
+      .date-en { font-family: sans-serif; direction: ltr; display: inline-block; }
+      .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #2C3340; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      .portal-card { transition: all 0.3s ease; }
+      .portal-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+    </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="notranslate">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        const firebaseConfig = {
+          apiKey: "AIzaSyAOMnl9ikDMngZZH-eSa3ldqtDCh6qsy_U",
+          authDomain: "boyoticom-15c4b.firebaseapp.com",
+          databaseURL: "https://boyoticom-15c4b-default-rtdb.firebaseio.com",
+          projectId: "boyoticom-15c4b",
+          storageBucket: "boyoticom-15c4b.firebasestorage.app",
+          messagingSenderId: "433583401372",
+          appId: "1:433583401372:web:2d483367ad0e0184a10059"
+        };
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getDatabase, ref, set, push, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        const { useState, useEffect, useMemo, useRef, Component } = window.React;
+
+        // --- UTILS & SHARED COMPONENTS ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+        const safeStr = (val) => (val === null || val === undefined) ? '' : String(val);
+        const safeArr = (val) => Array.isArray(val) ? val : [];
+        const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const WEEK_DAYS_AR = { 'Sun': 'الأحد', 'Mon': 'الاثنين', 'Tue': 'الثلاثاء', 'Wed': 'الأربعاء', 'Thu': 'الخميس', 'Fri': 'الجمعة', 'Sat': 'السبت' };
+
+        const Logo = ({ size = 40 }) => {
+            const [imgError, setImgError] = useState(false);
+            if (imgError) { return (<div className="bg-brand-900 rounded-xl flex items-center justify-center text-accent-500" style={{ width: size, height: size }}><Icon name="box" size={size * 0.6} /></div>); }
+            return (<img src="/logo.png" alt="شعار" className="object-contain" style={{ width: size, height: size }} onError={() => setImgError(true)} />);
+        };
+
+        const InstallModal = ({ isOpen, onClose, platform }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4" onClick={onClose}>
+                    <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl relative animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><Icon name="x" size={20}/></button>
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 bg-brand-900 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white shadow-lg">
+                                <Icon name="download" size={32} />
+                            </div>
+                            <h3 className="font-bold text-xl text-brand-900">تثبيت التطبيق</h3>
+                            <p className="text-sm text-gray-500 mt-2">للوصول السريع، أضف التطبيق إلى شاشتك الرئيسية.</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 text-sm text-gray-700 space-y-4">
+                            {platform === 'ios' ? (
+                                <>
+                                    <div className="flex items-center gap-3">
+                                        <span className="bg-gray-200 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                                        <span>اضغط على زر <span className="font-bold">المشاركة</span> <Icon name="share" size={14} className="inline mx-1"/> في الأسفل.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="bg-gray-200 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                                        <span>اختر <span className="font-bold">"إضافة إلى الصفحة الرئيسية"</span>.</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-3">
+                                        <span className="bg-gray-200 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                                        <span>اضغط على زر <span className="font-bold">القائمة</span> (ثلاث نقاط) في المتصفح.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="bg-gray-200 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                                        <span>اختر <span className="font-bold">"تثبيت التطبيق"</span> أو <span className="font-bold">"الإضافة للشاشة الرئيسية"</span>.</span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <button onClick={onClose} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold mt-6 hover:bg-brand-800">حسناً، فهمت</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const SupportFooter = () => {
+            const [deferredPrompt, setDeferredPrompt] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [platform, setPlatform] = useState('other');
+
+            useEffect(() => {
+                const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
+                window.addEventListener('beforeinstallprompt', handler);
+                const ua = navigator.userAgent;
+                if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) setPlatform('ios');
+                else if (/Android/.test(ua)) setPlatform('android');
+                return () => window.removeEventListener('beforeinstallprompt', handler);
+            }, []);
+
+            const handleInstallClick = () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => { if (choiceResult.outcome === 'accepted' || choiceResult.outcome === 'dismissed') { setDeferredPrompt(null); } });
+                } else { setShowModal(true); }
+            };
+
+            return (
+                <>
+                    <div className="w-full flex justify-center items-center gap-6 py-8 mt-auto opacity-60 hover:opacity-100 transition-opacity">
+                        {deferredPrompt && ( <><button onClick={handleInstallClick} className="bg-brand-900 text-white p-2 rounded-full hover:bg-brand-800 transition shadow-sm" title="تثبيت التطبيق"><Icon name="download" size={20}/></button><div className="w-px h-4 bg-gray-300"></div></>)}
+                        {!deferredPrompt && platform !== 'other' && ( <><button onClick={handleInstallClick} className="bg-gray-200 text-gray-600 p-2 rounded-full hover:bg-brand-900 hover:text-white transition shadow-sm" title="تثبيت التطبيق (إرشادات يدوية)"><Icon name="download" size={20}/></button><div className="w-px h-4 bg-gray-300"></div></>)}
+                        <div className="flex items-center gap-5 text-gray-400">
+                            <a href="https://wa.me/966567501919" target="_blank" className="hover:text-green-600 hover:scale-110 transition transform" title="WhatsApp"><Icon name="message-circle" size={20}/></a>
+                            <a href="tel:0567501919" className="hover:text-blue-600 hover:scale-110 transition transform" title="Call"><Icon name="phone" size={20}/></a>
+                            <a href="mailto:asaleh@boyoticom.com" className="hover:text-red-600 hover:scale-110 transition transform" title="Email"><Icon name="mail" size={20}/></a>
+                        </div>
+                    </div>
+                    <InstallModal isOpen={showModal} onClose={()=>setShowModal(false)} platform={platform} />
+                </>
+            );
+        };
+
+        // --- LOGIN COMPONENT ---
+        const Login = () => {
+            const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
+            const handleLogin = async (e) => { e.preventDefault(); setLoading(true); setError(''); try { await signInWithEmailAndPassword(auth, email, password); } catch (err) { setError('البريد أو كلمة المرور غير صحيحة'); setLoading(false); } };
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] p-4">
+                    <div className="flex-1 flex flex-col justify-center w-full max-w-md">
+                        <div className="bg-white p-10 rounded-3xl shadow-2xl text-center mb-6">
+                            <div className="mx-auto flex items-center justify-center mb-6"><Logo size={80} /></div>
+                            <h1 className="text-3xl font-black text-brand-900 mb-2">بيوتكم ERP</h1>
+                            <p className="text-gray-500 mb-8">بوابة الموظفين الموحدة</p>
+                            {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold">{error}</div>}
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="email" required placeholder="البريد الإلكتروني" value={email} onChange={e=>setEmail(e.target.value)} />
+                                <input className="w-full p-4 border rounded-xl bg-gray-50 text-right date-en outline-none focus:border-brand-900" type="password" required placeholder="كلمة المرور" value={password} onChange={e=>setPassword(e.target.value)} />
+                                <button disabled={loading} className="w-full bg-brand-900 text-white p-4 rounded-xl font-bold hover:bg-brand-800 transition shadow-lg disabled:opacity-70">{loading ? 'جاري الدخول...' : 'تسجيل الدخول'}</button>
+                            </form>
+                        </div>
+                    </div>
+                    <SupportFooter />
+                </div>
+            );
+        };
+
+        // --- USER MANAGEMENT MODALS ---
+        const AddUserModal = ({ isOpen, onClose, onSave }) => {
+            const [newUser, setNewUser] = useState({ name: '', email: '', uid: '' });
+            if(!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">إضافة موظف جديد</h3><button onClick={onClose}><Icon name="x"/></button></div>
+                        <div className="space-y-3">
+                            <div className="bg-yellow-50 p-3 rounded text-xs text-yellow-800"> انسخ الـ UID من صفحة Authentication</div>
+                            <input className="w-full border rounded p-3" value={newUser.name} onChange={e=>setNewUser({...newUser, name:e.target.value})} placeholder="الاسم الثلاثي" />
+                            <input className="w-full border rounded p-3 text-right date-en" value={newUser.email} onChange={e=>setNewUser({...newUser, email:e.target.value})} placeholder="البريد الإلكتروني" />
+                            <input className="w-full border rounded p-3 text-right date-en font-mono" value={newUser.uid} onChange={e=>setNewUser({...newUser, uid:e.target.value})} placeholder="UID" />
+                            <button onClick={() => onSave(newUser)} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold mt-2"><span>حفظ ومتابعة</span></button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const RoleEditorModal = ({ user, isOpen, onClose, onSave }) => {
+            const [localUser, setLocalUser] = useState(user || {});
+            const [crmRole, setCrmRole] = useState(user?.permissions?.crm_role || 'none');
+            const [attRole, setAttRole] = useState(user?.permissions?.att_role || 'none');
+            const [pmRole, setPmRole] = useState(user?.permissions?.pm_role || 'none');
+            const [offDays, setOffDays] = useState(safeArr(user?.permissions?.weeklyOffDays));
+
+            useEffect(() => {
+                if(user) {
+                    setLocalUser(user);
+                    setCrmRole(user.permissions?.crm_role || 'none');
+                    setAttRole(user.permissions?.att_role || 'none');
+                    setPmRole(user.permissions?.pm_role || 'none');
+                    setOffDays(safeArr(user.permissions?.weeklyOffDays));
+                }
+            }, [user]);
+            
+            const handleToggleOffDay = (day) => {
+                setOffDays(prev => 
+                    prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                );
+            };
+
+            if (!isOpen || !user) return null;
+
+            const handleSave = () => {
+                const perms = { 
+                    crm_access: crmRole !== 'none', crm_role: crmRole, crm_reports: crmRole === 'supervisor', crm_delete: crmRole === 'supervisor', crm_export: false, 
+                    att_access: attRole !== 'none', att_role: attRole, att_reports: attRole === 'supervisor', att_zones: attRole === 'supervisor', weeklyOffDays: offDays,
+                    pm_access: pmRole !== 'none', pm_role: pmRole
+                };
+                const apps = [];
+                if (crmRole !== 'none') apps.push('crm');
+                if (attRole !== 'none') apps.push('attendance');
+                if (pmRole !== 'none') apps.push('pm');
+                onSave(localUser.id, localUser.name, localUser.email, apps, perms);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl">
+                        <div className="text-center mb-4 border-b pb-4">
+                            <div className="font-bold text-xl text-brand-900">تعديل صلاحيات: {user.name}</div>
+                            <div className="text-xs text-gray-500">{user.email}</div>
+                        </div>
+                        <div className="space-y-4 max-h-[60vh] overflow-y-auto p-2">
+                            <div className="border rounded-xl p-4 space-y-3">
+                                <h4 className="font-bold text-md text-brand-900">بيانات الموظف</h4>
+                                <input className="w-full border rounded p-3" placeholder="الاسم الثلاثي" value={localUser.name} onChange={e=>setLocalUser({...localUser, name:e.target.value})} />
+                                <input className="w-full border rounded p-3 text-right date-en" placeholder="البريد الإلكتروني" value={localUser.email} onChange={e=>setLocalUser({...localUser, email:e.target.value})} />
+                            </div>
+                            <div className="border rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-3 text-brand-900 font-bold"><Icon name="calendar-off"/> أيام الإجازة الأسبوعية</div>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {WEEK_DAYS.map(day => (
+                                        <button key={day} onClick={() => handleToggleOffDay(day)} className={`p-2 rounded border text-sm font-bold transition ${offDays.includes(day) ? 'bg-red-500 text-white' : 'bg-white hover:bg-gray-100'}`}>{WEEK_DAYS_AR[day]}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="border rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-3 text-crm-600 font-bold"><Icon name="layout-grid"/> نظام CRM</div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button onClick={()=>setCrmRole('none')} className={`p-2 rounded border text-sm ${crmRole==='none'?'bg-gray-200':'bg-white'}`}>لا يوجد</button>
+                                    <button onClick={()=>setCrmRole('employee')} className={`p-2 rounded border text-sm ${crmRole==='employee'?'bg-crm-600 text-white':'bg-white'}`}>موظف</button>
+                                    <button onClick={()=>setCrmRole('supervisor')} className={`p-2 rounded border text-sm ${crmRole==='supervisor'?'bg-crm-600 text-white':'bg-white'}`}>مشرف</button>
+                                </div>
+                            </div>
+                            <div className="border rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-3 text-accent-600 font-bold"><Icon name="clock"/> نظام الحضور</div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button onClick={()=>setAttRole('none')} className={`p-2 rounded border text-sm ${attRole==='none'?'bg-gray-200':'bg-white'}`}>لا يوجد</button>
+                                    <button onClick={()=>setAttRole('employee')} className={`p-2 rounded border text-sm ${attRole==='employee'?'bg-accent-600 text-white':'bg-white'}`}>موظف</button>
+                                    <button onClick={()=>setAttRole('supervisor')} className={`p-2 rounded border text-sm ${attRole==='supervisor'?'bg-accent-600 text-white':'bg-white'}`}>مشرف</button>
+                                </div>
+                            </div>
+                            <div className="border rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-3 text-pm-600 font-bold"><Icon name="briefcase"/> إدارة المشاريع</div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button onClick={()=>setPmRole('none')} className={`p-2 rounded border text-sm ${pmRole==='none'?'bg-gray-200':'bg-white'}`}>لا يوجد</button>
+                                    <button onClick={()=>setPmRole('employee')} className={`p-2 rounded border text-sm ${pmRole==='employee'?'bg-pm-600 text-white':'bg-white'}`}>موظف</button>
+                                    <button onClick={()=>setPmRole('manager')} className={`p-2 rounded border text-sm ${pmRole==='manager'?'bg-pm-600 text-white':'bg-white'}`}>مدير</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 mt-6 pt-4 border-t">
+                            <button onClick={onClose} className="flex-1 bg-gray-100 py-3 rounded-xl font-bold">إلغاء</button>
+                            <button onClick={handleSave} className="flex-1 bg-brand-900 text-white py-3 rounded-xl font-bold">حفظ الصلاحيات</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const UserManagerMain = ({ users, currentUser, onClose, onLoginAs }) => {
+            const [addModal, setAddModal] = useState(false);
+            const [editUser, setEditUser] = useState(null);
+            const displayUsers = users.filter(u => u.id !== currentUser.id);
+
+            const handleSaveNew = (userData) => {
+                if(!userData.uid) return alert('UID مطلوب');
+                set(ref(db, `users/${userData.uid}`), { name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', weeklyOffDays: ['Fri']} }).then(() => {
+                    setAddModal(false);
+                    setEditUser({ id: userData.uid, name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', weeklyOffDays: ['Fri']} }); 
+                }).catch(err => { console.error("Error", err); alert("فشل حفظ المستخدم الجديد."); });
+            };
+
+            const handleSaveRoles = (uid, name, email, apps, perms) => {
+                update(ref(db, `users/${uid}`), { name: name, email: email, allowedApps: apps, permissions: perms });
+                setEditUser(null);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-brand-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-xl rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6 border-b pb-4">
+                            <h3 className="text-xl font-black text-brand-900 flex items-center gap-2"><Icon name="users"/> <span>إدارة الموظفين</span></h3>
+                            <button onClick={onClose} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200"><Icon name="x"/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <button onClick={() => setAddModal(true)} className="w-full bg-brand-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow"><Icon name="user-plus"/> <span>إضافة موظف جديد</span></button>
+                            <div className="space-y-2 mt-4">
+                                {displayUsers.map(u => (
+                                    <div key={u.id} className="flex justify-between items-center p-4 bg-white border rounded-xl hover:shadow-md transition cursor-pointer" onClick={()=>setEditUser(u)}>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">{safeStr(u.name).charAt(0)}</div>
+                                            <div><div className="font-bold text-brand-900">{u.name}</div><div className="text-xs text-gray-500">{u.email}</div></div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs">
+                                            {/* Impersonation Button */}
+                                            <button onClick={(e) => { e.stopPropagation(); onLoginAs(u); }} className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-100 flex items-center gap-1">
+                                                <Icon name="log-in" size={14}/> دخول كـ
+                                            </button>
+                                            <div className="text-gray-400 flex gap-1">
+                                                <Icon name="settings-2" size={16}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {displayUsers.length === 0 && <div className="text-center py-10 text-gray-400"><span>لا يوجد موظفين آخرين.</span></div>}
+                            </div>
+                        </div>
+                    </div>
+                    <AddUserModal isOpen={addModal} onClose={()=>setAddModal(false)} onSave={handleSaveNew} />
+                    <RoleEditorModal user={editUser} isOpen={!!editUser} onClose={()=>setEditUser(null)} onSave={handleSaveRoles} />
+                </div>
+            );
+        };
+
+        // --- PORTAL COMPONENT ---
+        const Portal = ({ user, users, onLoginAs }) => {
+            const [showUserManager, setShowUserManager] = useState(false);
+            const isAdmin = user.role === 'admin';
+            const p = user.permissions || {};
+            const canAccessCRM = isAdmin || p.crm_access;
+            const canAccessAttendance = isAdmin || p.att_access;
+            const canAccessPM = isAdmin || p.pm_access;
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6 relative">
+                    <div className="w-full max-w-5xl flex-1 flex flex-col justify-center">
+                        <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
+                            <div className="flex items-center gap-5">
+                                <div className="w-20 h-20 bg-brand-900 rounded-2xl text-white flex items-center justify-center text-3xl font-black shadow-2xl shadow-brand-900/30">
+                                    <Logo size={60} />
+                                </div>
+                                <div>
+                                    <h1 className="text-3xl font-black text-brand-900 mb-1">مرحباً، {user.name} 👋</h1>
+                                    <p className="text-gray-500 font-medium">{isAdmin ? 'لوحة تحكم المدير العام' : 'اختر النظام للمتابعة'}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {isAdmin && (
+                                    <button onClick={()=>setShowUserManager(true)} className="bg-brand-900 text-white px-3 py-2 rounded-xl font-bold flex items-center gap-1 shadow-md hover:bg-brand-800 transition transform hover:scale-105 text-sm" title="إدارة الموظفين">
+                                        <Icon name="users" size={16}/> <span>إدارة الموظفين</span>
+                                    </button>
+                                )}
+                                <button onClick={()=>signOut(auth)} className="text-red-500 bg-red-50 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-red-100 transition shadow-md">
+                                    <Icon name="log-out"/> <span>خروج</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            {canAccessCRM ? (
+                                <div onClick={() => window.location.href='crm.html'} className="portal-card bg-white p-8 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-crm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-crm-500"></div><div className="w-20 h-20 bg-crm-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-crm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="layout-grid" size={40} /></div><h2 className="text-2xl font-black text-gray-800 mb-2">إدارة العملاء</h2><p className="text-gray-500 text-sm leading-relaxed">نظامك المتكامل لإدارة العملاء والصفقات والتقارير.</p><div className="mt-6 flex items-center text-crm-600 font-bold group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2" size={16}/></div></div>
+                            ) : ( <div className="bg-gray-50 p-8 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={40} className="text-gray-400 mb-4"/><h2 className="text-xl font-bold text-gray-500">إدارة العملاء</h2><p className="text-gray-400 text-sm mt-2">غير مصرح لك بالدخول</p></div> )}
+                            
+                            {canAccessAttendance ? (
+                                <div onClick={() => window.location.href='attendance.html'} className="portal-card bg-white p-8 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-accent-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-accent-500"></div><div className="w-20 h-20 bg-accent-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-accent-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="clock" size={40} /></div><h2 className="text-2xl font-black text-gray-800 mb-2">الحضور والانصراف</h2><p className="text-gray-500 text-sm leading-relaxed">تسجيل الحضور اليومي وتتبع ساعات العمل.</p><div className="mt-6 flex items-center text-accent-600 font-bold group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2" size={16}/></div></div>
+                            ) : ( <div className="bg-gray-50 p-8 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={40} className="text-gray-400 mb-4"/><h2 className="text-xl font-bold text-gray-500">الحضور والانصراف</h2><p className="text-gray-400 text-sm mt-2">غير مصرح لك بالدخول</p></div> )}
+
+                            {canAccessPM ? (
+                                <div onClick={() => window.location.href='pm.html'} className="portal-card bg-white p-8 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-pm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-pm-500"></div><div className="w-20 h-20 bg-pm-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-pm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="briefcase" size={40} /></div><h2 className="text-2xl font-black text-gray-800 mb-2">المشاريع والمهام</h2><p className="text-gray-500 text-sm leading-relaxed">إدارة المشاريع، وتوزيع المهام، ومتابعة الإنجاز.</p><div className="mt-6 flex items-center text-pm-600 font-bold group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2" size={16}/></div></div>
+                            ) : ( <div className="bg-gray-50 p-8 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={40} className="text-gray-400 mb-4"/><h2 className="text-xl font-bold text-gray-500">المشاريع والمهام</h2><p className="text-gray-400 text-sm mt-2">غير مصرح لك بالدخول</p></div> )}
+                        </div>
+                    </div>
+                    {showUserManager && <UserManagerMain users={users} currentUser={user} onClose={()=>setShowUserManager(false)} onLoginAs={onLoginAs} />}
+                    <SupportFooter />
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null); 
+            const [dbUser, setDbUser] = useState(null); 
+            const [originalAdmin, setOriginalAdmin] = useState(null);
+            const [users, setUsers] = useState([]); 
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => { 
+                const unsub = onAuthStateChanged(auth, u => { 
+                    if (u) { 
+                        setUser(u); 
+                        onValue(ref(db, 'users'), s => { 
+                            const data = s.val() || {}; 
+                            const list = Object.keys(data).map(k => ({ id: k, ...data[k] })); 
+                            setUsers(list); 
+                            if (!originalAdmin) {
+                                const profile = list.find(x => x.email.toLowerCase() === u.email.toLowerCase()); 
+                                if (u.email.toLowerCase() === 'asleh@boyoticom.com') { 
+                                    setDbUser({ ...profile, id: u.uid, role: 'admin', name: 'Ali Saleh', email: u.email, permissions: {weeklyOffDays: safeArr(profile?.permissions?.weeklyOffDays)}}); 
+                                } else { 
+                                    const userPermissions = profile?.permissions || {};
+                                    if (!userPermissions.weeklyOffDays) userPermissions.weeklyOffDays = ['Fri'];
+                                    setDbUser(profile ? { ...profile, id: u.uid, permissions: userPermissions } : { id: u.uid, email: u.email, role: 'employee', name: 'مستخدم جديد', permissions: {weeklyOffDays: ['Fri']} }); 
+                                }
+                            }
+                        }); 
+                    } else { 
+                        setUser(null); setDbUser(null); setOriginalAdmin(null);
+                    } 
+                    setLoading(false); 
+                }); 
+                return () => unsub(); 
+            }, [originalAdmin]);
+
+            const handleLoginAs = (targetUser) => {
+                if(dbUser.role !== 'admin') return;
+                setOriginalAdmin(dbUser);
+                setDbUser(targetUser);
+            };
+
+            const handleRevertLogin = () => {
+                if(originalAdmin) {
+                    setDbUser(originalAdmin);
+                    setOriginalAdmin(null);
+                }
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
+            if (!user) return <Login />;
+            if (!dbUser) return <div className="h-screen flex items-center justify-center"><div className="loader"></div></div>;
+
+            return (
+                <>
+                    {originalAdmin && (
+                        <div className="bg-orange-500 text-white px-4 py-2 text-center font-bold flex justify-between items-center sticky top-0 z-[60]">
+                            <span>⚠️ أنت الآن تتصفح بصلاحيات: {dbUser.name}</span>
+                            <button onClick={handleRevertLogin} className="bg-white text-orange-600 px-3 py-1 rounded text-xs font-black hover:bg-orange-50">العودة لحسابي</button>
+                        </div>
+                    )}
+                    <Portal user={dbUser} users={users} onLoginAs={handleLoginAs} />
+                </>
+            );
+        };
+
+        const root = window.ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

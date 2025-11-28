@@ -1,0 +1,11 @@
+{
+  "name": "boyoticom-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Boyoticom ERP Static Site",
+  "scripts": {
+    "build": "echo 'No build step required for static HTML'"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

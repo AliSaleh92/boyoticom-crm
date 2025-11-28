@@ -1,0 +1,7 @@
+{
+  "name": "Boyoticom ERP",
+  "description": "A modular ERP system with CRM, Attendance, and Project Management.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
