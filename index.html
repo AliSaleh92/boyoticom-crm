@@ -22,7 +22,8 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
               brand: { 900: '#2C3340', 800: '#1e232e', 50: '#f0f9ff' },
               accent: { 400: '#E6BC76', 500: '#CE9B52', 600: '#b0823e' },
               crm: { 500: '#6366f1', 600: '#4f46e5' },
-              pm: { 500: '#0d9488', 600: '#0f766e', 50: '#f0fdfa' }
+              pm: { 500: '#0d9488', 600: '#0f766e', 50: '#f0fdfa' },
+              hr: { 500: '#db2777', 600: '#be185d' }
             },
             fontFamily: { sans: ['Cairo', 'sans-serif'] }
           }
@@ -45,7 +46,6 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
       .portal-card { transition: all 0.3s ease; }
       .portal-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
     </style>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body class="notranslate">
     <div id="root"></div>
@@ -217,6 +217,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
             const [crmRole, setCrmRole] = useState(user?.permissions?.crm_role || 'none');
             const [attRole, setAttRole] = useState(user?.permissions?.att_role || 'none');
             const [pmRole, setPmRole] = useState(user?.permissions?.pm_role || 'none');
+            const [hrRole, setHrRole] = useState(user?.permissions?.hr_role || 'none');
             const [offDays, setOffDays] = useState(safeArr(user?.permissions?.weeklyOffDays));
 
             useEffect(() => {
@@ -225,6 +226,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                     setCrmRole(user.permissions?.crm_role || 'none');
                     setAttRole(user.permissions?.att_role || 'none');
                     setPmRole(user.permissions?.pm_role || 'none');
+                    setHrRole(user.permissions?.hr_role || 'none');
                     setOffDays(safeArr(user.permissions?.weeklyOffDays));
                 }
             }, [user]);
@@ -241,12 +243,14 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                 const perms = { 
                     crm_access: crmRole !== 'none', crm_role: crmRole, crm_reports: crmRole === 'supervisor', crm_delete: crmRole === 'supervisor', crm_export: false, 
                     att_access: attRole !== 'none', att_role: attRole, att_reports: attRole === 'supervisor', att_zones: attRole === 'supervisor', weeklyOffDays: offDays,
-                    pm_access: pmRole !== 'none', pm_role: pmRole
+                    pm_access: pmRole !== 'none', pm_role: pmRole,
+                    hr_access: hrRole !== 'none', hr_role: hrRole
                 };
                 const apps = [];
                 if (crmRole !== 'none') apps.push('crm');
                 if (attRole !== 'none') apps.push('attendance');
                 if (pmRole !== 'none') apps.push('pm');
+                if (hrRole !== 'none') apps.push('hr');
                 onSave(localUser.id, localUser.name, localUser.email, apps, perms);
             };
 
@@ -295,6 +299,14 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                                     <button onClick={()=>setPmRole('manager')} className={`p-2 rounded border text-sm ${pmRole==='manager'?'bg-pm-600 text-white':'bg-white'}`}>مدير</button>
                                 </div>
                             </div>
+                            <div className="border rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-3 text-hr-600 font-bold"><Icon name="users"/> الموارد البشرية</div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button onClick={()=>setHrRole('none')} className={`p-2 rounded border text-sm ${hrRole==='none'?'bg-gray-200':'bg-white'}`}>لا يوجد</button>
+                                    <button onClick={()=>setHrRole('employee')} className={`p-2 rounded border text-sm ${hrRole==='employee'?'bg-hr-600 text-white':'bg-white'}`}>موظف</button>
+                                    <button onClick={()=>setHrRole('manager')} className={`p-2 rounded border text-sm ${hrRole==='manager'?'bg-hr-600 text-white':'bg-white'}`}>مدير</button>
+                                </div>
+                            </div>
                         </div>
                         <div className="flex gap-2 mt-6 pt-4 border-t">
                             <button onClick={onClose} className="flex-1 bg-gray-100 py-3 rounded-xl font-bold">إلغاء</button>
@@ -312,9 +324,9 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
 
             const handleSaveNew = (userData) => {
                 if(!userData.uid) return alert('UID مطلوب');
-                set(ref(db, `users/${userData.uid}`), { name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', weeklyOffDays: ['Fri']} }).then(() => {
+                set(ref(db, `users/${userData.uid}`), { name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', hr_role: 'none', weeklyOffDays: ['Fri']} }).then(() => {
                     setAddModal(false);
-                    setEditUser({ id: userData.uid, name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', weeklyOffDays: ['Fri']} }); 
+                    setEditUser({ id: userData.uid, name: userData.name, email: userData.email, role: 'user', allowedApps: [], permissions: {crm_role: 'none', att_role: 'none', pm_role: 'none', hr_role: 'none', weeklyOffDays: ['Fri']} }); 
                 }).catch(err => { console.error("Error", err); alert("فشل حفظ المستخدم الجديد."); });
             };
 
@@ -368,6 +380,7 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
             const canAccessCRM = isAdmin || p.crm_access;
             const canAccessAttendance = isAdmin || p.att_access;
             const canAccessPM = isAdmin || p.pm_access;
+            const canAccessHR = isAdmin || p.hr_access;
 
             return (
                 <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6 relative">
@@ -394,18 +407,22 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                             {canAccessCRM ? (
-                                <div onClick={() => window.location.href='crm.html'} className="portal-card bg-white p-8 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-crm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-crm-500"></div><div className="w-20 h-20 bg-crm-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-crm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="layout-grid" size={40} /></div><h2 className="text-2xl font-black text-gray-800 mb-2">إدارة العملاء</h2><p className="text-gray-500 text-sm leading-relaxed">نظامك المتكامل لإدارة العملاء والصفقات والتقارير.</p><div className="mt-6 flex items-center text-crm-600 font-bold group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2" size={16}/></div></div>
-                            ) : ( <div className="bg-gray-50 p-8 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={40} className="text-gray-400 mb-4"/><h2 className="text-xl font-bold text-gray-500">إدارة العملاء</h2><p className="text-gray-400 text-sm mt-2">غير مصرح لك بالدخول</p></div> )}
+                                <div onClick={() => window.location.href='crm.html'} className="portal-card bg-white p-6 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-crm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-crm-500"></div><div className="w-16 h-16 bg-crm-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-crm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="layout-grid" size={32} /></div><h2 className="text-xl font-black text-gray-800 mb-2">إدارة العملاء</h2><p className="text-gray-500 text-xs leading-relaxed">إدارة العملاء والصفقات والتقارير.</p></div>
+                            ) : ( <div className="bg-gray-50 p-6 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={32} className="text-gray-400 mb-4"/><h2 className="text-lg font-bold text-gray-500">إدارة العملاء</h2></div> )}
                             
                             {canAccessAttendance ? (
-                                <div onClick={() => window.location.href='attendance.html'} className="portal-card bg-white p-8 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-accent-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-accent-500"></div><div className="w-20 h-20 bg-accent-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-accent-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="clock" size={40} /></div><h2 className="text-2xl font-black text-gray-800 mb-2">الحضور والانصراف</h2><p className="text-gray-500 text-sm leading-relaxed">تسجيل الحضور اليومي وتتبع ساعات العمل.</p><div className="mt-6 flex items-center text-accent-600 font-bold group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2" size={16}/></div></div>
-                            ) : ( <div className="bg-gray-50 p-8 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={40} className="text-gray-400 mb-4"/><h2 className="text-xl font-bold text-gray-500">الحضور والانصراف</h2><p className="text-gray-400 text-sm mt-2">غير مصرح لك بالدخول</p></div> )}
+                                <div onClick={() => window.location.href='attendance.html'} className="portal-card bg-white p-6 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-accent-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-accent-500"></div><div className="w-16 h-16 bg-accent-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-accent-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="clock" size={32} /></div><h2 className="text-xl font-black text-gray-800 mb-2">الحضور</h2><p className="text-gray-500 text-xs leading-relaxed">تسجيل الحضور اليومي وساعات العمل.</p></div>
+                            ) : ( <div className="bg-gray-50 p-6 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={32} className="text-gray-400 mb-4"/><h2 className="text-lg font-bold text-gray-500">الحضور</h2></div> )}
 
                             {canAccessPM ? (
-                                <div onClick={() => window.location.href='pm.html'} className="portal-card bg-white p-8 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-pm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-pm-500"></div><div className="w-20 h-20 bg-pm-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-pm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="briefcase" size={40} /></div><h2 className="text-2xl font-black text-gray-800 mb-2">المشاريع والمهام</h2><p className="text-gray-500 text-sm leading-relaxed">إدارة المشاريع، وتوزيع المهام، ومتابعة الإنجاز.</p><div className="mt-6 flex items-center text-pm-600 font-bold group-hover:translate-x-2 transition-transform"><span>الدخول للنظام</span> <Icon name="arrow-left" className="mr-2" size={16}/></div></div>
-                            ) : ( <div className="bg-gray-50 p-8 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={40} className="text-gray-400 mb-4"/><h2 className="text-xl font-bold text-gray-500">المشاريع والمهام</h2><p className="text-gray-400 text-sm mt-2">غير مصرح لك بالدخول</p></div> )}
+                                <div onClick={() => window.location.href='pm.html'} className="portal-card bg-white p-6 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-pm-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-pm-500"></div><div className="w-16 h-16 bg-pm-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-pm-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="briefcase" size={32} /></div><h2 className="text-xl font-black text-gray-800 mb-2">المشاريع</h2><p className="text-gray-500 text-xs leading-relaxed">إدارة المشاريع، المهام، والإنجاز.</p></div>
+                            ) : ( <div className="bg-gray-50 p-6 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={32} className="text-gray-400 mb-4"/><h2 className="text-lg font-bold text-gray-500">المشاريع</h2></div> )}
+
+                            {canAccessHR ? (
+                                <div onClick={() => window.location.href='hr.html'} className="portal-card bg-white p-6 rounded-[2rem] shadow-lg border-2 border-transparent hover:border-hr-500 cursor-pointer group relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-2 bg-hr-500"></div><div className="w-16 h-16 bg-hr-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-hr-500/30 group-hover:scale-110 transition-transform duration-300"><Icon name="users" size={32} /></div><h2 className="text-xl font-black text-gray-800 mb-2">الموارد البشرية</h2><p className="text-gray-500 text-xs leading-relaxed">إدارة الموظفين، الرواتب، والوثائق.</p></div>
+                            ) : ( <div className="bg-gray-50 p-6 rounded-[2rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center opacity-60 grayscale cursor-not-allowed"><Icon name="lock" size={32} className="text-gray-400 mb-4"/><h2 className="text-lg font-bold text-gray-500">الموارد البشرية</h2></div> )}
                         </div>
                     </div>
                     {showUserManager && <UserManagerMain users={users} currentUser={user} onClose={()=>setShowUserManager(false)} onLoginAs={onLoginAs} />}
@@ -481,6 +498,5 @@ c30VzdGF0aWNvbi5jb20LzUxMi85NTYzLzk1NjMzMjYucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlw
         const root = window.ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>
